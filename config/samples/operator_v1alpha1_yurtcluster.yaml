@@ -1,0 +1,22 @@
+apiVersion: operator.openyurt.io/v1alpha1
+kind: YurtCluster
+metadata:
+  name: openyurt
+spec:
+  imageRepository: "registry.cn-hangzhou.aliyuncs.com/ecp_builder"
+  version: "v0.4.1-preview" # must >= v0.4.1
+  yurtHub:
+    autoRestartNodePod: false
+    enableResourceFilter: false
+    accessServerThroughHub: false
+  yurtTunnel:
+    enable: true
+    publicIP: "" # Enter the real public IP of the tunnel-server. If the edge node can directly access the tunnel server pod, just leave it blank.
+    publicPort: 32502
+  yurtAppManager:
+    installCRD: true
+    enableController: true
+    version: "v0.4.0"
+  nodeLocalDNSCache:
+    enable: true
+    image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/k8s-dns-node-cache:1.17.0

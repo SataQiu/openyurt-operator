@@ -1,0 +1,8 @@
+name: openyurt-operator
+description: The operator to manage edge cluster based on openyurt
+type: application
+maintainers:
+  - name: shida.qsd
+    email: shida.qsd@alibaba-inc.com
+version: 1.0.0
+appVersion: 1.0.0

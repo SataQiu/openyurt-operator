@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Component
+metadata:
+  name: openyurt-operator
+spec:
+  class: SAAS
+  category: SAAS
+  description: The operator to manage edge cluster based on openyurt
+  parentComponent: true
+  provider: ""
+  appVersion: 1.0.0
+  images:
+  - registry: registry.cn-hangzhou.aliyuncs.com
+    repository: ecp_builder/openyurt-node
+    tag: v1.0.0
+    managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-node:v1.0.0
+  - registry: registry.cn-hangzhou.aliyuncs.com
+    repository: ecp_builder/openyurt-operator
+    tag: v1.0.0
+    managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator:v1.0.0
+  - registry: registry.cn-hangzhou.aliyuncs.com
+    repository: ecp_builder/openyurt-agent
+    tag: v1.0.0
+    managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.0
+  namespaces:
+  - kube-system
+  singleton: true
+  public: false
+  children: []
+  readme: |
+    # OpenYurt Operator
+
+    ## Quick Start
+
+    ### Prepare a Kubernetes cluster
+
+    ```shell
+    # cat <<EOF | kind create cluster --config=-
+    kind: Cluster
+    apiVersion: kind.x-k8s.io/v1alpha4
+    nodes:
+    - role: control-plane
+    - role: worker
+    - role: worker
+    - role: worker
+    EOF
+    ```
+
+    ### Install OpenYurt Operator
+
+    ```shell
+    # helm install openyurt-operator ./charts -n kube-system
+    ```
+
+    ### Convert the cluster to edge (apply YurtCluster)
+
+    ```shell
+    # kubectl apply -f ./config/samples/operator_v1alpha1_yurtcluster.yaml
+    ```
+
+    ### Convert a Node to Edge Node
+
+    ```shell
+    # kubectl label node <NODE_NAME> openyurt.io/is-edge-worker=true --overwrite
+    ```
+
+    ### Revert a Node to Normal Node
+
+    ```shell
+    # kubectl label node <NODE_NAME> openyurt.io/is-edge-worker=false --overwrite
+    ```
+
+    ### Revert the cluster to normal
+
+    ```shell
+    # kubectl delete yurtclusters openyurt
+    ```
+  version: 1.0.0
+  values: |
+    agent:
+      image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.0
+      imagePullPolicy: Always
+    node:
+      healthCheckTimeout: 5m
+      image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-node:v1.0.0
+      imagePullPolicy: Always
+    operator:
+      image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator:v1.0.0
+      imagePullPolicy: Always

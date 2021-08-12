@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+  labels:
+    control-plane: controller-manager
+spec:
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        control-plane: controller-manager
+    spec:
+      tolerations:
+        - operator: Exists
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/master
+                    operator: Exists
+      serviceAccountName: yurt-operator-manager
+      containers:
+      - command:
+        - /manager
+        args:
+        - --yurt-agent-image=registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.0
+        - --yurt-node-image=registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-node:v1.0.0
+        - --yurt-agent-image-pull-policy=Always
+        - --yurt-node-image-pull-policy=IfNotPresent
+        - --yurt-task-health-check-timeout=5m
+        image: openyurt-operator:v1.0.0
+        imagePullPolicy: IfNotPresent
+        name: manager
+        resources:
+          limits:
+            cpu: 100m
+            memory: 30Mi
+          requests:
+            cpu: 100m
+            memory: 20Mi
+      terminationGracePeriodSeconds: 10

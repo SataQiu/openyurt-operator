@@ -1,0 +1,20 @@
+apiVersion: skaffold/v2beta16
+kind: Config
+build:
+  tagPolicy:
+    envTemplate:
+      template: "v1.0.0"
+  artifacts:
+    - image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator
+      custom:
+        buildCommand: "make docker-build-operator && kind load docker-image registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator:v1.0.0"
+    - image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent
+      custom:
+        buildCommand: "make docker-build-agent && kind load docker-image registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.0"
+    - image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-node
+      custom:
+        buildCommand: "make docker-build-node && kind load docker-image registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-node:v1.0.0 && make manifests"
+
+deploy:
+  kustomize:
+    paths: ["config/default"]

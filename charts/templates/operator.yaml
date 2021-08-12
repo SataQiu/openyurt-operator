@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    control-plane: controller-manager
+  name: yurt-operator-controller-manager-metrics-service
+  namespace: kube-system
+spec:
+  ports:
+    - name: https
+      port: 8443
+      targetPort: https
+  selector:
+    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    control-plane: controller-manager
+  name: yurt-operator-controller-manager
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  template:
+    metadata:
+      labels:
+        control-plane: controller-manager
+    spec:
+      tolerations:
+        - operator: Exists
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/master
+                    operator: Exists
+      containers:
+        - command:
+            - /manager
+          args:
+            - --yurt-agent-image={{ .Values.agent.image }}
+            - --yurt-node-image={{ .Values.node.image }}
+            - --yurt-agent-image-pull-policy={{ .Values.agent.imagePullPolicy }}
+            - --yurt-node-image-pull-policy={{ .Values.node.imagePullPolicy }}
+            - --yurt-task-health-check-timeout={{ .Values.node.healthCheckTimeout }}
+          image: {{ .Values.operator.image }}
+          imagePullPolicy: {{ .Values.operator.imagePullPolicy }}
+          name: manager
+          resources:
+            limits:
+              cpu: 100m
+              memory: 30Mi
+            requests:
+              cpu: 100m
+              memory: 20Mi
+      serviceAccountName: yurt-operator-manager
+      terminationGracePeriodSeconds: 10

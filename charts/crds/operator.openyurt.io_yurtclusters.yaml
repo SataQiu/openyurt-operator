@@ -1,0 +1,250 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.5
+  creationTimestamp: null
+  name: yurtclusters.operator.openyurt.io
+spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.phase
+    name: PHASE
+    type: string
+  group: operator.openyurt.io
+  names:
+    kind: YurtCluster
+    listKind: YurtClusterList
+    plural: yurtclusters
+    shortNames:
+    - yc
+    singular: yurtcluster
+  scope: Cluster
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: YurtCluster is the Schema for the yurtclusters API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: YurtClusterSpec defines the desired state of YurtCluster
+          properties:
+            imageRepository:
+              description: ImageRepository defines the image repository address
+              type: string
+            nodeLocalDNSCache:
+              description: NodeLocalDNSCache defines the configuration for node local
+                dns cache
+              properties:
+                enable:
+                  description: Enable defines whether to enable the node local dns
+                    cache
+                  type: boolean
+                image:
+                  description: NodeLocalDNSImage defines the image full path for node
+                    local dns
+                  type: string
+                nodeLocalAddress:
+                  description: NodeLocalAddress defines the IP that the node local
+                    dns will bind to
+                  type: string
+              type: object
+            version:
+              description: Version defines the version to deploy
+              type: string
+            yurtAppManager:
+              description: YurtAppManager defines the configuration for yurt app manager
+              properties:
+                enableController:
+                  description: EnableController defines whether to enable the yurt
+                    app manager controller
+                  type: boolean
+                installCRD:
+                  description: InstallCRD defines whether to install the yurt app
+                    manager crd
+                  type: boolean
+                version:
+                  description: Version defines the version of yurt app manager
+                  type: string
+              type: object
+            yurtHub:
+              description: YurtHub defines the configuration for yurt hub
+              properties:
+                accessServerThroughHub:
+                  description: AccessServerThroughHub enables pods access kube-apiserver
+                    through yurthub or not
+                  type: boolean
+                autoRestartNodePod:
+                  description: AutoRestartNodePod represents whether to automatically
+                    restart the pod after yurt-hub added or removed
+                  type: boolean
+                enableResourceFilter:
+                  description: EnableResourceFilter enables to filter response that
+                    comes back from reverse proxy
+                  type: boolean
+              type: object
+            yurtTunnel:
+              description: YurtTunnel defines the configuration for yurt tunnel
+              properties:
+                enable:
+                  description: Enable defines whether to enable the yurt tunnel component
+                  type: boolean
+                publicIP:
+                  description: PublicIP defines the public IP for tunnel server listen
+                    on
+                  type: string
+                publicPort:
+                  description: PublicPort defines the public port for tunnel server
+                    listen on
+                  type: integer
+                serverCount:
+                  description: ServerCount defines the replicas for the tunnel server
+                    deployment Operator will automatically override this value if
+                    it is less than the number of master node
+                  type: integer
+              type: object
+          type: object
+        status:
+          description: YurtClusterStatus defines the observed state of YurtCluster
+          properties:
+            lastUpdateSpec:
+              description: LastUpdateTime is the latest update spec by the operator
+              properties:
+                imageRepository:
+                  description: ImageRepository defines the image repository address
+                  type: string
+                nodeLocalDNSCache:
+                  description: NodeLocalDNSCache defines the configuration for node
+                    local dns cache
+                  properties:
+                    enable:
+                      description: Enable defines whether to enable the node local
+                        dns cache
+                      type: boolean
+                    image:
+                      description: NodeLocalDNSImage defines the image full path for
+                        node local dns
+                      type: string
+                    nodeLocalAddress:
+                      description: NodeLocalAddress defines the IP that the node local
+                        dns will bind to
+                      type: string
+                  type: object
+                version:
+                  description: Version defines the version to deploy
+                  type: string
+                yurtAppManager:
+                  description: YurtAppManager defines the configuration for yurt app
+                    manager
+                  properties:
+                    enableController:
+                      description: EnableController defines whether to enable the
+                        yurt app manager controller
+                      type: boolean
+                    installCRD:
+                      description: InstallCRD defines whether to install the yurt
+                        app manager crd
+                      type: boolean
+                    version:
+                      description: Version defines the version of yurt app manager
+                      type: string
+                  type: object
+                yurtHub:
+                  description: YurtHub defines the configuration for yurt hub
+                  properties:
+                    accessServerThroughHub:
+                      description: AccessServerThroughHub enables pods access kube-apiserver
+                        through yurthub or not
+                      type: boolean
+                    autoRestartNodePod:
+                      description: AutoRestartNodePod represents whether to automatically
+                        restart the pod after yurt-hub added or removed
+                      type: boolean
+                    enableResourceFilter:
+                      description: EnableResourceFilter enables to filter response
+                        that comes back from reverse proxy
+                      type: boolean
+                  type: object
+                yurtTunnel:
+                  description: YurtTunnel defines the configuration for yurt tunnel
+                  properties:
+                    enable:
+                      description: Enable defines whether to enable the yurt tunnel
+                        component
+                      type: boolean
+                    publicIP:
+                      description: PublicIP defines the public IP for tunnel server
+                        listen on
+                      type: string
+                    publicPort:
+                      description: PublicPort defines the public port for tunnel server
+                        listen on
+                      type: integer
+                    serverCount:
+                      description: ServerCount defines the replicas for the tunnel
+                        server deployment Operator will automatically override this
+                        value if it is less than the number of master node
+                      type: integer
+                  type: object
+              type: object
+            lastUpdateTime:
+              description: LastUpdateTime is the latest update time by the operator
+              format: date-time
+              type: string
+            nodeConvertConditions:
+              additionalProperties:
+                description: NodeConvertCondition describes the state of a node at
+                  a certain point.
+                properties:
+                  ackLastUpdateTime:
+                    description: AckLastUpdateTime is the latest ack for the latest
+                      update time set by the operator
+                    format: date-time
+                    type: string
+                  lastTransitionTime:
+                    description: The last time this condition was updated.
+                    format: date-time
+                    type: string
+                  message:
+                    description: A human readable message indicating details about
+                      the transition.
+                    type: string
+                  reason:
+                    description: The reason for the condition's last transition.
+                    type: string
+                  status:
+                    description: The status for the condition's last transition.
+                    type: string
+                type: object
+              description: NodeConvertConditions holds the info about node convert
+                conditions
+              type: object
+            phase:
+              description: Phase represents the current phase of the openyurt cluster
+              type: string
+          type: object
+      type: object
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
