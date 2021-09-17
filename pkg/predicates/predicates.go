@@ -25,33 +25,28 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
-// ResourceHasName returns a predicate that returns true only if the provided resource with given name.
-func ResourceHasName(logger logr.Logger, name string) predicate.Funcs {
+// ResourceWithNamespaceName returns a predicate that returns true only if the provided resource with given namespace and name.
+func ResourceWithNamespaceName(logger logr.Logger, namespace, name string) predicate.Funcs {
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			return processIfNameMatch(logger.WithValues("predicate", "updateEvent"), e.ObjectNew, name)
+			return processIfNamespaceNameMatch(logger.WithValues("predicate", "updateEvent"), e.ObjectNew, namespace, name)
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
-			return processIfNameMatch(logger.WithValues("predicate", "createEvent"), e.Object, name)
+			return processIfNamespaceNameMatch(logger.WithValues("predicate", "createEvent"), e.Object, namespace, name)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			return processIfNameMatch(logger.WithValues("predicate", "deleteEvent"), e.Object, name)
+			return processIfNamespaceNameMatch(logger.WithValues("predicate", "deleteEvent"), e.Object, namespace, name)
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			return processIfNameMatch(logger.WithValues("predicate", "genericEvent"), e.Object, name)
+			return processIfNamespaceNameMatch(logger.WithValues("predicate", "genericEvent"), e.Object, namespace, name)
 		},
 	}
 }
 
-func processIfNameMatch(logger logr.Logger, obj client.Object, name string) bool {
-	// return early if no name was set.
-	if name == "" {
-		return true
-	}
-
+func processIfNamespaceNameMatch(logger logr.Logger, obj client.Object, namespace, name string) bool {
 	kind := strings.ToLower(obj.GetObjectKind().GroupVersionKind().Kind)
 	log := logger.WithValues("namespace", obj.GetNamespace(), kind, obj.GetName())
-	if name == obj.GetName() {
+	if namespace == obj.GetNamespace() && name == obj.GetName() {
 		log.V(4).Info("Resource matches name, will attempt to map resource")
 		return true
 	}

@@ -1,7 +1,12 @@
 # Build the manager binary
-FROM golang:1.16 as builder
+FROM --platform=${BUILDPLATFORM} golang:1.16 as builder
+
+ARG TARGETOS
+ARG TARGETARCH
+
 ARG GO_PROXY
 ENV GOPROXY ${GO_PROXY:-"https://proxy.golang.org,direct"}
+
 WORKDIR /workspace
 # Copy the Go Modules manifests
 COPY go.mod go.mod
@@ -11,24 +16,19 @@ COPY go.sum go.sum
 RUN go mod download
 
 # Copy the go source
-COPY . .
+COPY api ./api
+COPY cmd ./cmd
+COPY pkg ./pkg
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o agent cmd/agent/agent.go
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o edgectl cmd/edgectl/edgectl.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GO111MODULE=on go build -a -o agent cmd/agent/agent.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GO111MODULE=on go build -a -o edgectl cmd/edgectl/edgectl.go
 
-FROM alpine:3.14.0
-
+FROM alpine:3.12.0
 WORKDIR /
-
-COPY scripts/local-revert.sh /local-revert.sh
-COPY scripts/local-restart-container.sh /local-restart-container.sh
 COPY --from=builder /workspace/agent .
 
 RUN mkdir /assets
-COPY scripts/bin/jq-linux-amd64 /assets/jq
-COPY scripts/bin/crictl-linux-amd64 /assets/crictl
 COPY --from=builder /workspace/edgectl /assets/edgectl
-COPY scripts/restart-container.sh /assets/restart-container.sh
 
 ENTRYPOINT ["/agent"]

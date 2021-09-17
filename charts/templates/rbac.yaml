@@ -56,6 +56,56 @@ metadata:
   name: yurt-operator-manager-role
 rules:
   - apiGroups:
+      - storage.k8s.io
+    resources:
+      - csidrivers
+      - csinodes
+      - volumeattachments
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - node.k8s.io
+    resources:
+      - runtimeclasses
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - node.k8s.io
+    resources:
+      - runtimeclasses
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - localsubjectaccessreviews
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
       - apiextensions.k8s.io
     resources:
       - customresourcedefinitions
@@ -182,11 +232,15 @@ rules:
       - services
       - pods
       - pods/status
+      - pods/eviction
       - nodes
       - nodes/status
       - endpoints
       - persistentvolumeclaims
+      - persistentvolumeclaims/status
+      - persistentvolumes
       - secrets
+      - serviceaccounts/token
     verbs:
       - get
       - list

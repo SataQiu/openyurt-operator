@@ -33,6 +33,7 @@ import (
 	"k8s.io/klog/v2"
 
 	openyurtv1alpha1 "github.com/openyurtio/openyurt-operator/api/v1alpha1"
+	"github.com/openyurtio/openyurt-operator/pkg/cri"
 	"github.com/openyurtio/openyurt-operator/pkg/kclient"
 	"github.com/openyurtio/openyurt-operator/pkg/patcher"
 	"github.com/openyurtio/openyurt-operator/pkg/util"
@@ -173,14 +174,15 @@ func (opt *revertOptions) runRevert(ctx context.Context) (reterr error) {
 		return errors.Wrap(err, "failed to remove yurt-hub")
 	}
 
-	if err := opt.cleanTunnelServerIPTablesRules(); err != nil {
-		return errors.Wrap(err, "failed to clean tunnel server iptables rules")
+	klog.Info("run tunnel server iptables rules cleanup")
+	if out, err := util.CleanTunnelServerIPTablesRules(); err != nil {
+		return errors.Wrapf(err, "failed to clean tunnel server iptables rules, output: %v", out)
 	}
 
 	// restart local pods
 	if yurtCluster.Spec.YurtHub.AutoRestartNodePod != nil && *yurtCluster.Spec.YurtHub.AutoRestartNodePod {
-		if err := restartLocalPods(ctx, false); err != nil {
-			klog.Warningf("post restart containers with error %v", err)
+		if err := cri.StopAllReadyPodsExceptYurt(ctx); err != nil {
+			klog.Warningf("post stop Pods with error %v", err)
 		}
 	}
 
@@ -265,16 +267,6 @@ func (opt *revertOptions) removeYurtHub(cmdLine string) (reterr error) {
 	yurtHubManifestPath := filepath.Join(filepath.Dir(pkiDir), "manifests", "yurt-hub.yaml")
 	if exists, err := util.FileExists(yurtHubManifestPath); err == nil && exists {
 		return os.RemoveAll(yurtHubManifestPath)
-	}
-	return nil
-}
-
-func (opt *revertOptions) cleanTunnelServerIPTablesRules() error {
-	cmd := `iptables-save | grep -v "TUNNEL-PORT" | iptables-restore`
-	out, err := util.RunCommandWithCombinedOutput(cmd)
-	klog.V(4).Infof("run command %q with result: %v", cmd, string(out))
-	if err != nil {
-		return err
 	}
 	return nil
 }

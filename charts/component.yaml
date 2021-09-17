@@ -11,10 +11,6 @@ spec:
   appVersion: 1.0.0
   images:
   - registry: registry.cn-hangzhou.aliyuncs.com
-    repository: ecp_builder/openyurt-node
-    tag: v1.0.0
-    managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-node:v1.0.0
-  - registry: registry.cn-hangzhou.aliyuncs.com
     repository: ecp_builder/openyurt-operator
     tag: v1.0.0
     managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator:v1.0.0
@@ -22,6 +18,10 @@ spec:
     repository: ecp_builder/openyurt-agent
     tag: v1.0.0
     managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.0
+  - registry: registry.cn-hangzhou.aliyuncs.com
+    repository: ecp_builder/alpine:3.12.0
+    tag: 3.12.0
+    managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/alpine:3.12.0
   namespaces:
   - kube-system
   singleton: true
@@ -82,8 +82,9 @@ spec:
       imagePullPolicy: Always
     node:
       healthCheckTimeout: 5m
-      image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-node:v1.0.0
-      imagePullPolicy: Always
+      image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/alpine:3.12.0
+      imagePullPolicy: IfNotPresent
     operator:
       image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator:v1.0.0
       imagePullPolicy: Always
+  platforms: []

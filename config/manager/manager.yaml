@@ -30,7 +30,7 @@ spec:
         - /manager
         args:
         - --yurt-agent-image=registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.0
-        - --yurt-node-image=registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-node:v1.0.0
+        - --yurt-node-image=registry.cn-hangzhou.aliyuncs.com/ecp_builder/alpine:3.12.0
         - --yurt-agent-image-pull-policy=Always
         - --yurt-node-image-pull-policy=IfNotPresent
         - --yurt-task-health-check-timeout=5m
@@ -39,8 +39,8 @@ spec:
         name: manager
         resources:
           limits:
-            cpu: 100m
-            memory: 30Mi
+            cpu: 1000m
+            memory: 1024Mi
           requests:
             cpu: 100m
             memory: 20Mi

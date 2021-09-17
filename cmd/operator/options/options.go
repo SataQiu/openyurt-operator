@@ -38,7 +38,7 @@ func NewDefaultOptions() *Options {
 	return &Options{
 		MetricsBindAddr:            ":8080",
 		YurtAgentImage:             "registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.0",
-		YurtNodeImage:              "registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-node:v1.0.0",
+		YurtNodeImage:              "registry.cn-hangzhou.aliyuncs.com/ecp_builder/alpine:3.12.0",
 		YurtAgentImagePullPolicy:   string(corev1.PullAlways),
 		YurtNodeImagePullPolicy:    string(corev1.PullIfNotPresent),
 		YurtTaskHealthCheckTimeout: time.Minute * 5,

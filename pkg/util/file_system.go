@@ -20,10 +20,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -129,4 +136,121 @@ func GetAPIServerAddress(apiServerAddress string) string {
 		return apiServerAddress
 	}
 	return addr
+}
+
+// EnableNodeLifeCycleController enables nodelifecycle controller for kube-controller-manager
+func EnableNodeLifeCycleController(filePath string) error {
+	pod, err := getPodFromKubeControllerManagerManifest(filePath)
+	if err != nil {
+		return errors.Wrap(err, "failed to enable nodelifecycle controller for kube-controller-manager")
+	}
+
+	old := pod.DeepCopy()
+
+	for i, container := range pod.Spec.Containers {
+		for j, command := range container.Command {
+			if strings.Contains(command, ",-nodelifecycle") {
+				command = strings.ReplaceAll(command, ",-nodelifecycle", "")
+				pod.Spec.Containers[i].Command[j] = command
+			}
+		}
+	}
+
+	if reflect.DeepEqual(pod, old) {
+		return nil
+	}
+
+	return writePodManifestIntoFile(pod, filePath)
+}
+
+// DisableNodeLifeCycleController disables nodelifecycle controller for kube-controller-manager
+func DisableNodeLifeCycleController(filePath string) error {
+	pod, err := getPodFromKubeControllerManagerManifest(filePath)
+	if err != nil {
+		return errors.Wrap(err, "failed to enable nodelifecycle controller for kube-controller-manager")
+	}
+
+	old := pod.DeepCopy()
+
+	for i, container := range pod.Spec.Containers {
+		if len(container.Command) == 0 || !strings.HasSuffix(container.Command[0], "kube-controller-manager") {
+			continue
+		}
+		foundControllersFlag := false
+		for j, command := range container.Command {
+			if strings.HasPrefix(command, "--controllers=") {
+				foundControllersFlag = true
+				if strings.Contains(command, "-nodelifecycle") {
+					break
+				} else {
+					command = fmt.Sprintf("%s,-nodelifecycle", command)
+					pod.Spec.Containers[i].Command[j] = command
+				}
+				break
+			}
+		}
+
+		if !foundControllersFlag {
+			pod.Spec.Containers[i].Command = append(pod.Spec.Containers[i].Command, "--controllers=*,bootstrapsigner,tokencleaner,-nodelifecycle")
+		}
+	}
+
+	if reflect.DeepEqual(pod, old) {
+		return nil
+	}
+
+	return writePodManifestIntoFile(pod, filePath)
+}
+
+func getPodFromKubeControllerManagerManifest(filePath string) (*corev1.Pod, error) {
+	exists, err := FileExists(filePath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to whether file %v exists", filePath)
+	}
+	if !exists {
+		return nil, errors.Errorf("can not enable nodelifecycle controller for kube-controller-manager, file %v not found", filePath)
+	}
+	content, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to read file %v", filePath)
+	}
+
+	obj, err := YamlToObject(content)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to convert content of %v into client.Object", filePath)
+	}
+
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		return nil, errors.Errorf("the content of %v is not Pod", filePath)
+	}
+	return pod, nil
+}
+
+func writePodManifestIntoFile(pod *corev1.Pod, filePath string) error {
+	serialized, err := MarshalToYaml(pod, corev1.SchemeGroupVersion)
+	if err != nil {
+		return errors.Wrapf(err, "failed to marshal manifest for pod %v", klog.KObj(pod))
+	}
+	if err := ioutil.WriteFile(filePath, serialized, 0600); err != nil {
+		return errors.Wrapf(err, "failed to write static pod manifest file for %v", klog.KObj(pod))
+	}
+	return nil
+}
+
+// MarshalToYaml marshals an object into yaml.
+func MarshalToYaml(obj runtime.Object, gv schema.GroupVersion) ([]byte, error) {
+	return MarshalToYamlForCodecs(obj, gv, clientsetscheme.Codecs)
+}
+
+// MarshalToYamlForCodecs marshals an object into yaml using the specified codec
+func MarshalToYamlForCodecs(obj runtime.Object, gv schema.GroupVersion, codecs serializer.CodecFactory) ([]byte, error) {
+	const mediaType = runtime.ContentTypeYAML
+	info, ok := runtime.SerializerInfoForMediaType(codecs.SupportedMediaTypes(), mediaType)
+	if !ok {
+		return []byte{}, errors.Errorf("unsupported media type %q", mediaType)
+	}
+
+	encoder := codecs.EncoderForVersion(info.Serializer, gv)
+	return runtime.Encode(encoder, obj)
 }

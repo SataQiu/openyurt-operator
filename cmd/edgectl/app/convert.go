@@ -41,6 +41,7 @@ import (
 
 	openyurtv1alpha1 "github.com/openyurtio/openyurt-operator/api/v1alpha1"
 	"github.com/openyurtio/openyurt-operator/pkg/constants"
+	"github.com/openyurtio/openyurt-operator/pkg/cri"
 	"github.com/openyurtio/openyurt-operator/pkg/kclient"
 	"github.com/openyurtio/openyurt-operator/pkg/patcher"
 	"github.com/openyurtio/openyurt-operator/pkg/util"
@@ -200,8 +201,8 @@ func (opt *convertOptions) runConvert(ctx context.Context) (reterr error) {
 
 	// restart local pods
 	if yurtCluster.Spec.YurtHub.AutoRestartNodePod != nil && *yurtCluster.Spec.YurtHub.AutoRestartNodePod {
-		if err := restartLocalPods(ctx, true); err != nil {
-			klog.Warningf("post restart containers with error %v", err)
+		if err := cri.StopAllReadyPodsExceptYurt(ctx); err != nil {
+			klog.Warningf("post stop Pods with error %v", err)
 		}
 	}
 

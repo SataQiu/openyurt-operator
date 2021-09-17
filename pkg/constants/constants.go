@@ -23,6 +23,21 @@ const (
 	SkipReconcileAnnotation = "operator.openyurt.io/skip-reconcile"
 	// NodeControllerClusterRoleBindingName defines the name of the ClusterRoleBinding name for node controller
 	NodeControllerClusterRoleBindingName = "system:controller:node-controller"
+
+	// OperatorManifestsTemplateNamespace defines the namespace of the operator manifests template ConfigMap
+	// This should be consistent with the namespace of util/assets/operator-manifests-template.yaml
+	OperatorManifestsTemplateNamespace = "kube-system"
+	// OperatorManifestsTemplateName defines the name of the operator manifests template ConfigMap
+	// This should be consistent with the name of util/assets/operator-manifests-template.yaml
+	OperatorManifestsTemplateName = "yurt-operator-manifests-template"
+
+	// ControlPlaneLabel defines the label for control-plane node
+	ControlPlaneLabel = "node-role.kubernetes.io/master"
+
+	// EdgeNodeTaintKey defines the taint key for edge node
+	EdgeNodeTaintKey = "node-role.openyurt.io/edge"
+	// EdgeNodeTaintEffect defines the taint effect for edge node
+	EdgeNodeTaintEffect = "NoSchedule"
 )
 
 // manifests data keys

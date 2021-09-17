@@ -19,34 +19,36 @@ package agent
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/lithammer/dedent"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorv1alpha1 "github.com/openyurtio/openyurt-operator/api/v1alpha1"
 	"github.com/openyurtio/openyurt-operator/cmd/agent/options"
 	"github.com/openyurtio/openyurt-operator/pkg/constants"
 	controllersutil "github.com/openyurtio/openyurt-operator/pkg/controllers"
-	"github.com/openyurtio/openyurt-operator/pkg/kclient"
-	"github.com/openyurtio/openyurt-operator/pkg/predicates"
-	"github.com/openyurtio/openyurt-operator/pkg/projectinfo"
+	"github.com/openyurtio/openyurt-operator/pkg/patcher"
 	"github.com/openyurtio/openyurt-operator/pkg/util"
 )
 
 const (
-	defaultRequeueAfterTime = time.Second * 5
+	defaultRequeueAfterTime                  = time.Second * 5
+	kubeControllerManagerDefaultManifestPath = "/etc/kubernetes/manifests/kube-controller-manager.yaml"
 )
 
 // DefaultBackoff is the recommended backoff for a conflict where a client
@@ -68,16 +70,11 @@ type NodeReconciler struct {
 	Options *options.Options
 }
 
-var nodeReconcilerLock sync.Mutex
-
 func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, reterr error) {
 	// quick return
 	if req.Name != r.Options.NodeName {
 		return ctrl.Result{}, nil
 	}
-
-	nodeReconcilerLock.Lock()
-	defer nodeReconcilerLock.Unlock()
 
 	log := r.Log.WithValues("Node", req.NamespacedName)
 
@@ -91,7 +88,25 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 		return ctrl.Result{}, err
 	}
 
-	log.Info("reconcile node", "NamespacedName", req.NamespacedName)
+	log.V(2).Info("reconcile node", "NamespacedName", req.NamespacedName)
+
+	// Initialize the patch helper.
+	patchHelper, err := patcher.NewHelper(node, r.Client)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	defer func() {
+		// Always attempt to Patch the Cluster object and status after each reconciliation.
+		// Patch ObservedGeneration only if the reconciliation completed successfully
+		patchOpts := []patcher.Option{}
+		if reterr == nil {
+			patchOpts = append(patchOpts, patcher.WithStatusObservedGeneration{})
+		}
+		if err := patchHelper.Patch(ctx, node, patchOpts...); err != nil {
+			reterr = kerrors.NewAggregate([]error{reterr, err})
+		}
+	}()
 
 	yurtCluster, err := util.LoadYurtCluster(ctx)
 	if err != nil {
@@ -104,6 +119,10 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 
 	// ensure normal node
 	if !controllersutil.IsEdgeNode(node) {
+
+		// ensure no edge taint
+		util.RemoveEdgeTaintForNode(node)
+
 		if controllersutil.IsNodeAlreadyReverted(yurtCluster, node.Name) {
 			return ctrl.Result{}, nil
 		}
@@ -123,12 +142,13 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 
 		if !util.IsNodeReady(node) {
 			klog.Infof("node %v is not ready now, will try best to revert", node.Name)
-			return r.runRevertLocally(ctx, yurtCluster)
+			return r.runRevertForce(ctx, yurtCluster)
 		}
 		return r.runRevert(ctx, yurtCluster, node.Name)
 	}
 
 	// ensure edge node
+	util.AddEdgeTaintForNode(node)
 	if controllersutil.IsNodeAlreadyConverted(yurtCluster, node.Name) {
 		return ctrl.Result{}, nil
 	}
@@ -138,42 +158,31 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 	return r.runConvert(ctx, yurtCluster, node.Name)
 }
 
-// runRevertLocally is an best-effort to revert unhealthy node
+// runRevertForce is an best-effort to revert unhealthy node locally
 // It requires the yurt node agent to run in privileged mode, which can be a security hazard.
-func (r *NodeReconciler) runRevertLocally(ctx context.Context, yurtCluster *operatorv1alpha1.YurtCluster) (ctrl.Result, error) {
-	result, err := util.RunCommandWithCombinedOutput("/local-revert.sh")
+func (r *NodeReconciler) runRevertForce(ctx context.Context, yurtCluster *operatorv1alpha1.YurtCluster) (ctrl.Result, error) {
+	cmd := dedent.Dedent(fmt.Sprintf(`
+          set -e
+          cp -a /var/run/secrets/kubernetes.io/serviceaccount /tmp/serviceaccount
+          nsenter -t 1 -m -u -n -i sh <<EOF
+          if [ ! -d /var/run/secrets/kubernetes.io ]; then
+            mkdir -p /var/run/secrets/kubernetes.io
+          fi
+          cp -a /var/tmp/serviceaccount /var/run/secrets/kubernetes.io/
+          /var/tmp/edgectl revert --node-name %v --health-check-timeout %v --force
+          rm -rf /var/run/secrets/kubernetes.io/serviceaccount
+          exit
+          EOF
+          rm -rf /tmp/serviceaccount
+	`, r.Options.NodeName, r.Options.YurtTaskHealthCheckTimeout))
+
+	result, err := util.RunCommandWithCombinedOutput(cmd)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	klog.Infof("run revert result: %v", string(result))
-
-	if yurtCluster.Spec.YurtHub.AutoRestartNodePod != nil && *yurtCluster.Spec.YurtHub.AutoRestartNodePod {
-		if err := restartLocalPodsLocally(ctx, false); err != nil {
-			klog.Warningf("post restart containers with error %v", err)
-		}
-	}
+	klog.Infof("run revert with result: %v", string(result))
 
 	return ctrl.Result{}, nil
-}
-
-// assume that all materials have been prepared by yurt agent init container
-func restartLocalPodsLocally(ctx context.Context, isConvert bool) error {
-	svc := &corev1.Service{}
-	err := kclient.CtlClient().Get(ctx, types.NamespacedName{Namespace: "default", Name: "kubernetes"}, svc)
-	if err != nil {
-		return err
-	}
-	if svc.Spec.ClusterIP == "" {
-		klog.Warningf("found empty ClusterIP in kubernetes default service, skip restart containers")
-		return nil
-	}
-	cmd := fmt.Sprintf("/local-restart-container.sh %v %s", isConvert, svc.Spec.ClusterIP)
-	result, err := util.RunCommandWithCombinedOutput(cmd)
-	if err != nil {
-		return err
-	}
-	klog.Infof("restart containers with command %q result: %v", cmd, string(result))
-	return nil
 }
 
 func (r *NodeReconciler) runRevert(ctx context.Context, yurtCluster *operatorv1alpha1.YurtCluster, nodeName string) (_ ctrl.Result, reterr error) {
@@ -398,12 +407,52 @@ func applyRBACForYurtNode(ctx context.Context, template *corev1.ConfigMap, yurtC
 	return nil
 }
 
+func (r *NodeReconciler) YurtClusterToNodeMapFunc(o client.Object) []ctrl.Request {
+	yurtCluster, ok := o.(*operatorv1alpha1.YurtCluster)
+	if !ok {
+		r.Log.Error(nil, fmt.Sprintf("expected a YurtCluster but got a %T", o))
+		return nil
+	}
+
+	if yurtCluster.Name != constants.SingletonYurtClusterInstanceName {
+		return nil
+	}
+
+	// enable nodelifecycle controller back
+	isMaster, err := util.IsMasterNode(context.TODO(), r.Client, r.Options.NodeName)
+	if err != nil {
+		r.Log.Error(err, "failed to check whether node is Master", "NodeName", r.Options.NodeName)
+	}
+	if isMaster {
+		if !yurtCluster.ObjectMeta.DeletionTimestamp.IsZero() {
+			if err := util.EnableNodeLifeCycleController(kubeControllerManagerDefaultManifestPath); err != nil {
+				r.Log.Error(err, "failed to enable nodelifecycle controller for kube-controller-manager")
+			}
+		} else {
+			if err := util.DisableNodeLifeCycleController(kubeControllerManagerDefaultManifestPath); err != nil {
+				r.Log.Error(err, "failed to disable nodelifecycle controller for kube-controller-manager")
+			}
+		}
+	}
+
+	return []ctrl.Request{
+		{
+			NamespacedName: types.NamespacedName{
+				Name: r.Options.NodeName,
+			},
+		},
+	}
+}
+
 func (r *NodeReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
-	_, err := ctrl.NewControllerManagedBy(mgr).
+	err := ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Node{}).
-		WithEventFilter(predicates.ResourceLabelChanged(ctrl.LoggerFrom(ctx), projectinfo.GetEdgeWorkerLabelKey())).
+		Watches(
+			&source.Kind{Type: &operatorv1alpha1.YurtCluster{}},
+			handler.EnqueueRequestsFromMapFunc(r.YurtClusterToNodeMapFunc),
+		).
 		WithOptions(options).
-		Build(r)
+		Complete(r)
 
 	if err != nil {
 		return errors.Wrap(err, "failed setting up with a controller manager")

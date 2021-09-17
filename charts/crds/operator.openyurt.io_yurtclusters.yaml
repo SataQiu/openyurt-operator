@@ -61,6 +61,14 @@ spec:
                   description: NodeLocalAddress defines the IP that the node local
                     dns will bind to
                   type: string
+                upstreamPublicIP:
+                  description: UpstreamPublicIP defines the public IP for cloud coredns
+                    listen on
+                  type: string
+                upstreamPublicPort:
+                  description: UpstreamPublicPort defines the public port for cloud
+                    coredns listen on
+                  type: integer
               type: object
             version:
               description: Version defines the version to deploy
@@ -142,6 +150,14 @@ spec:
                       description: NodeLocalAddress defines the IP that the node local
                         dns will bind to
                       type: string
+                    upstreamPublicIP:
+                      description: UpstreamPublicIP defines the public IP for cloud
+                        coredns listen on
+                      type: string
+                    upstreamPublicPort:
+                      description: UpstreamPublicPort defines the public port for
+                        cloud coredns listen on
+                      type: integer
                   type: object
                 version:
                   description: Version defines the version to deploy

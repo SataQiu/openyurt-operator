@@ -103,6 +103,14 @@ type NodeLocalDNSCache struct {
 	// +optional
 	Enable *bool `json:"enable,omitempty"`
 
+	// UpstreamPublicIP defines the public IP for cloud coredns listen on
+	// +optional
+	UpstreamPublicIP string `json:"upstreamPublicIP,omitempty"`
+
+	// UpstreamPublicPort defines the public port for cloud coredns listen on
+	// +optional
+	UpstreamPublicPort int `json:"upstreamPublicPort,omitempty"`
+
 	// NodeLocalAddress defines the IP that the node local dns will bind to
 	// +optional
 	NodeLocalAddress string `json:"nodeLocalAddress,omitempty"`

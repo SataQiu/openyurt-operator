@@ -18,9 +18,9 @@ package operator
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -36,9 +36,12 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorv1alpha1 "github.com/openyurtio/openyurt-operator/api/v1alpha1"
 	"github.com/openyurtio/openyurt-operator/cmd/operator/options"
@@ -65,8 +68,6 @@ type YurtClusterReconciler struct {
 	Options *options.Options
 }
 
-var yurtClusterReconcilerLock sync.Mutex
-
 // +kubebuilder:rbac:groups=operator.openyurt.io,resources=yurtclusters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=operator.openyurt.io,resources=yurtclusters/status,verbs=get;update;patch
 
@@ -76,11 +77,8 @@ func (r *YurtClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, nil
 	}
 
-	yurtClusterReconcilerLock.Lock()
-	defer yurtClusterReconcilerLock.Unlock()
-
 	log := r.Log.WithValues("yurtcluster", req.NamespacedName)
-	log.Info("reconcile YurtCluster", "NamespacedName", req.NamespacedName)
+	log.V(2).Info("reconcile YurtCluster", "NamespacedName", req.NamespacedName)
 
 	yurtCluster, err := util.LoadYurtCluster(ctx)
 	if err != nil {
@@ -127,10 +125,6 @@ func (r *YurtClusterReconciler) reconcile(ctx context.Context, yurtCluster *oper
 		if yurtCluster.Status.LastUpdateTime.Time.UnixNano() != yurtCluster.ObjectMeta.DeletionTimestamp.UnixNano() {
 			yurtCluster.Status.LastUpdateSpec = yurtCluster.Spec
 			yurtCluster.Status.LastUpdateTime = *yurtCluster.ObjectMeta.DeletionTimestamp
-		}
-		// mark all nodes as normal node
-		if err := r.markNodesAsNormal(ctx); err != nil {
-			return ctrl.Result{}, err
 		}
 	} else {
 		// check if should propagate again
@@ -205,6 +199,11 @@ func (r *YurtClusterReconciler) reconcileYurtNodeAgent(ctx context.Context, temp
 func (r *YurtClusterReconciler) reconcileYurtComponents(ctx context.Context, template *corev1.ConfigMap, yurtCluster *operatorv1alpha1.YurtCluster) error {
 	var errs []error
 
+	// yurt hub rbac
+	if err := r.reconcileYurtHubClusterRole(ctx); err != nil {
+		errs = append(errs, err)
+	}
+
 	// yurt controller manager
 	if err := r.reconcileYurtControllerManager(ctx, template, yurtCluster); err != nil {
 		errs = append(errs, err)
@@ -234,6 +233,65 @@ func (r *YurtClusterReconciler) reconcileYurtComponents(ctx context.Context, tem
 	}
 
 	return utilerrors.NewAggregate(errs)
+}
+
+func (r *YurtClusterReconciler) reconcileYurtHubClusterRole(ctx context.Context) error {
+	// patch system:nodes cluster role
+	nodeClusterRole := &rbacv1.ClusterRole{}
+	key := types.NamespacedName{Name: "system:node"}
+	if err := kclient.CtlClient().Get(ctx, key, nodeClusterRole); err != nil {
+		return errors.Wrap(err, "failed to patch system:node ClusterRole for YurtHub")
+	}
+	found := false
+	for _, rule := range nodeClusterRole.Rules {
+		for _, apiGroup := range rule.APIGroups {
+			if apiGroup == "apps.openyurt.io" {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		yurtHubRules := []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{"apps.openyurt.io"},
+				Resources: []string{"nodepools"},
+				Verbs:     []string{"create", "delete", "get", "list", "patch", "update", "watch"},
+			},
+		}
+		nodeClusterRole.Rules = append(nodeClusterRole.Rules, yurtHubRules...)
+		// TODO: check why patch not work
+		if err := kclient.CtlClient().Update(ctx, nodeClusterRole); err != nil {
+			return errors.Wrap(err, "failed to patch system:node ClusterRole for YurtHub")
+		}
+	}
+
+	// patch system:node cluster role binding
+	nodeClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
+	if err := kclient.CtlClient().Get(ctx, key, nodeClusterRoleBinding); err != nil {
+		return errors.Wrap(err, "failed to patch system:node ClusterRoleBinding for YurtHub")
+	}
+	found = false
+	for _, sub := range nodeClusterRoleBinding.Subjects {
+		if sub.Kind == "Group" && sub.Name == "system:nodes" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		nodesSub := rbacv1.Subject{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Group",
+			Name:     "system:nodes",
+		}
+		nodeClusterRoleBinding.Subjects = append(nodeClusterRoleBinding.Subjects, nodesSub)
+		// TODO: check why patch not work
+		if err := kclient.CtlClient().Update(ctx, nodeClusterRoleBinding); err != nil {
+			return errors.Wrap(err, "failed to patch system:node ClusterRoleBinding for YurtHub")
+		}
+	}
+
+	return nil
 }
 
 func (r *YurtClusterReconciler) reconcileYurtControllerManager(ctx context.Context, template *corev1.ConfigMap, yurtCluster *operatorv1alpha1.YurtCluster) error {
@@ -303,16 +361,8 @@ func (r *YurtClusterReconciler) reconcileYurtControllerManager(ctx context.Conte
 	}
 
 	// ensure the node-lifecycle controller of the k8s controller manager is off
-	// we implement this by delete the system:controller:node-controller ClusterRoleBinding
-	nodeControllerClusterRoleBinding := &rbacv1.ClusterRoleBinding{}
-	key := types.NamespacedName{Name: constants.NodeControllerClusterRoleBindingName}
-	if err := r.Client.Get(ctx, key, nodeControllerClusterRoleBinding); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		return err
-	}
-	return r.Client.Delete(ctx, nodeControllerClusterRoleBinding)
+	// this will be done by agent
+	return nil
 }
 
 func (r *YurtClusterReconciler) reconcileYurtAppManager(ctx context.Context, template *corev1.ConfigMap, yurtCluster *operatorv1alpha1.YurtCluster) error {
@@ -384,10 +434,13 @@ func (r *YurtClusterReconciler) reconcileNodeLocalDNSCache(ctx context.Context, 
 	}
 
 	values := map[string]string{
-		"nodeLocalAddress":  yurtCluster.Spec.NodeLocalDNSCache.NodeLocalAddress,
-		"kubeDNSClusterIP":  kubeDNSClusterIP,
-		"nodeLocalDNSImage": util.GetNodeLocalDNSImageByName(yurtCluster, "k8s-dns-node-cache"),
-		"clusterDomain":     clusterDomain,
+		"edgeNodeLabel":         projectinfo.GetEdgeWorkerLabelKey(),
+		"nodeLocalAddress":      yurtCluster.Spec.NodeLocalDNSCache.NodeLocalAddress,
+		"dnsUpstreamPublicIP":   yurtCluster.Spec.NodeLocalDNSCache.UpstreamPublicIP,
+		"dnsUpstreamPublicPort": strconv.Itoa(yurtCluster.Spec.NodeLocalDNSCache.UpstreamPublicPort),
+		"kubeDNSClusterIP":      kubeDNSClusterIP,
+		"nodeLocalDNSImage":     util.GetNodeLocalDNSImageByName(yurtCluster, "k8s-dns-node-cache"),
+		"clusterDomain":         clusterDomain,
 	}
 
 	// reconcile delete
@@ -574,7 +627,11 @@ func (r *YurtClusterReconciler) markNodesAsNormal(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		node.Labels[projectinfo.GetEdgeWorkerLabelKey()] = "false"
+
+		if _, ok := node.Labels[projectinfo.GetEdgeWorkerLabelKey()]; ok {
+			node.Labels[projectinfo.GetEdgeWorkerLabelKey()] = "false"
+		}
+
 		if err := patchHelper.Patch(ctx, node); err != nil {
 			return errors.Wrapf(err, "failed to patch node %q with %q label", klog.KObj(node), projectinfo.GetEdgeWorkerLabelKey())
 		}
@@ -590,12 +647,83 @@ func isNodeConvertOrRevertCompleted(node *corev1.Node, yurtCluster *operatorv1al
 	return controllersutil.IsNodeAlreadyReverted(yurtCluster, node.Name)
 }
 
+func (r *YurtClusterReconciler) ResourceToYurtClusterMapFunc(o client.Object) []ctrl.Request {
+	return []ctrl.Request{
+		{
+			NamespacedName: types.NamespacedName{
+				Name: constants.SingletonYurtClusterInstanceName,
+			},
+		},
+	}
+}
+
+func (r *YurtClusterReconciler) EnsureNodeLabel(o client.Object) []ctrl.Request {
+	node, ok := o.(*corev1.Node)
+	if !ok {
+		r.Log.Error(nil, fmt.Sprintf("expected a Node but got a %T", o))
+		return nil
+	}
+
+	if err := r.EnsureEdgeLabel(context.TODO(), node); err != nil {
+		r.Log.Error(err, "failed to patch label for node", "Name", klog.KObj(node))
+	}
+
+	return nil
+}
+
+// EnsureEdgeLabel marks node with is-edge-worker/false label if not exists
+func (r *YurtClusterReconciler) EnsureEdgeLabel(ctx context.Context, node *corev1.Node) error {
+	patchHelperNode, err := patcher.NewHelper(node, r.Client)
+	if err != nil {
+		return err
+	}
+
+	// skip if not control-plane node
+	if _, ok := node.Labels[constants.ControlPlaneLabel]; !ok {
+		return nil
+	}
+
+	labelKey := projectinfo.GetEdgeWorkerLabelKey()
+	found := false
+	for key := range node.Labels {
+		if key == labelKey {
+			found = true
+			break
+		}
+	}
+	if !found {
+		node.Labels[labelKey] = "false"
+	}
+
+	return patchHelperNode.Patch(ctx, node)
+}
+
 func (r *YurtClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
-	_, err := ctrl.NewControllerManagedBy(mgr).
+	err := ctrl.NewControllerManagedBy(mgr).
 		For(&operatorv1alpha1.YurtCluster{}).
-		WithEventFilter(predicates.ResourceHasName(ctrl.LoggerFrom(ctx), constants.SingletonYurtClusterInstanceName)).
+		Watches(
+			&source.Kind{Type: &corev1.Node{}},
+			handler.EnqueueRequestsFromMapFunc(r.EnsureNodeLabel),
+		).
+		Watches(
+			&source.Kind{Type: &corev1.Node{}},
+			handler.EnqueueRequestsFromMapFunc(r.ResourceToYurtClusterMapFunc),
+			builder.WithPredicates(predicates.ResourceLabelChanged(
+				ctrl.LoggerFrom(ctx),
+				projectinfo.GetEdgeWorkerLabelKey()),
+			),
+		).
+		Watches(
+			&source.Kind{Type: &corev1.ConfigMap{}},
+			handler.EnqueueRequestsFromMapFunc(r.ResourceToYurtClusterMapFunc),
+			builder.WithPredicates(predicates.ResourceWithNamespaceName(
+				ctrl.LoggerFrom(ctx),
+				constants.OperatorManifestsTemplateNamespace,
+				constants.OperatorManifestsTemplateName),
+			),
+		).
 		WithOptions(options).
-		Build(r)
+		Complete(r)
 
 	if err != nil {
 		return errors.Wrap(err, "failed setting up with a controller manager")

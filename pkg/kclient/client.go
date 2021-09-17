@@ -67,7 +67,16 @@ func GetConfig(apiServerAddress string) (*rest.Config, error) {
 		}
 	}
 
-	return ctrl.GetConfig()
+	config, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// Set QPS and Burst to a threshold that ensures the controller runtime client/client go doesn't generate throttling log messages
+	config.QPS = 100
+	config.Burst = 200
+
+	return config, nil
 }
 
 // InitializeKubeClient initializes the Kubernetes Client

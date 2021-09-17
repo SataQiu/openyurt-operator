@@ -40,7 +40,7 @@ func NewDefaultOptions() *Options {
 	return &Options{
 		NodeName:                   nodeName,
 		MetricsBindAddr:            "0", // set 0 to disable metrics
-		YurtNodeImage:              "registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-node:v1.0.0",
+		YurtNodeImage:              "registry.cn-hangzhou.aliyuncs.com/ecp_builder/alpine:3.12.0",
 		YurtNodeImagePullPolicy:    string(corev1.PullIfNotPresent),
 		YurtTaskHealthCheckTimeout: time.Minute * 5,
 	}

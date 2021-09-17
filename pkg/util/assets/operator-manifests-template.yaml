@@ -341,6 +341,9 @@ data:
       annotations:
         operator.openyurt.io/skip-reconcile: "true"
     data:
+      localhost-proxy-ports: "10266, 10267"
+      http-proxy-ports: ""
+      https-proxy-ports: ""
       dnat-ports-pair: ""
   yurt-tunnel-server-deploy-template: |
     apiVersion: apps/v1
@@ -378,6 +381,7 @@ data:
           - operator: "Exists"
           nodeSelector:
             "kubernetes.io/hostname": {{ .nodeName }}
+            {{ .edgeNodeLabel }}: "false"
           containers:
           - name: yurt-tunnel-server
             image: {{ .yurtTunnelServerImage }}
@@ -782,6 +786,8 @@ data:
       - get
       - list
       - watch
+      - patch
+      - update
     - apiGroups:
       - ""
       - apps
@@ -1777,15 +1783,18 @@ data:
         addonmanager.kubernetes.io/mode: Reconcile
         kubernetes.io/name: "KubeDNSUpstream"
     spec:
+      type: NodePort
       ports:
       - name: dns
-        port: 53
+        port: {{ .dnsUpstreamPublicPort }}
         protocol: UDP
         targetPort: 53
+        nodePort: {{ .dnsUpstreamPublicPort }}
       - name: dns-tcp
-        port: 53
+        port: {{ .dnsUpstreamPublicPort }}
         protocol: TCP
         targetPort: 53
+        nodePort: {{ .dnsUpstreamPublicPort }}
       selector:
         k8s-app: kube-dns
   node-local-dns-cache-config: |
@@ -1807,7 +1816,7 @@ data:
             reload
             loop
             bind {{ .nodeLocalAddress }} {{ .kubeDNSClusterIP }}
-            forward . __PILLAR__CLUSTER__DNS__ {
+            forward . __PILLAR__CLUSTER__DNS__:{{ .dnsUpstreamPublicPort }} {
                     force_tcp
             }
             prometheus :9253
@@ -1819,7 +1828,7 @@ data:
             reload
             loop
             bind {{ .nodeLocalAddress }} {{ .kubeDNSClusterIP }}
-            forward . __PILLAR__CLUSTER__DNS__ {
+            forward . __PILLAR__CLUSTER__DNS__:{{ .dnsUpstreamPublicPort }} {
                     force_tcp
             }
             prometheus :9253
@@ -1830,7 +1839,7 @@ data:
             reload
             loop
             bind {{ .nodeLocalAddress }} {{ .kubeDNSClusterIP }}
-            forward . __PILLAR__CLUSTER__DNS__ {
+            forward . __PILLAR__CLUSTER__DNS__:{{ .dnsUpstreamPublicPort }} {
                     force_tcp
             }
             prometheus :9253
@@ -1841,7 +1850,9 @@ data:
             reload
             loop
             bind {{ .nodeLocalAddress }} {{ .kubeDNSClusterIP }}
-            forward . __PILLAR__UPSTREAM__SERVERS__
+            forward . __PILLAR__CLUSTER__DNS__:{{ .dnsUpstreamPublicPort }} {
+                    force_tcp
+            }
             prometheus :9253
             }
   node-local-dns-cache-ds: |
@@ -1873,6 +1884,8 @@ data:
           serviceAccountName: node-local-dns
           hostNetwork: true
           dnsPolicy: Default  # Don't use cluster DNS.
+          nodeSelector:
+            {{ .edgeNodeLabel }}: "true"
           tolerations:
           - key: "CriticalAddonsOnly"
             operator: "Exists"
@@ -1883,6 +1896,11 @@ data:
           containers:
           - name: node-cache
             image: {{ .nodeLocalDNSImage }}
+            {{if .dnsUpstreamPublicIP -}}
+            env:
+            - name: "KUBE_DNS_UPSTREAM_SERVICE_HOST"
+              value: "{{ .dnsUpstreamPublicIP }}"
+            {{end}}
             resources:
               requests:
                 cpu: 25m

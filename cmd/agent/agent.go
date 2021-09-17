@@ -80,26 +80,13 @@ func main() {
 }
 
 func setupReconcilers(ctx context.Context, mgr ctrl.Manager, opt *options.Options) {
-	nodeReconciler := &controllers.NodeReconciler{
+	if err := (&controllers.NodeReconciler{
 		Client:  mgr.GetClient(),
 		Log:     ctrl.Log.WithName("controllers").WithName("Node"),
 		Scheme:  mgr.GetScheme(),
 		Options: opt,
-	}
-
-	if err := (nodeReconciler).SetupWithManager(ctx, mgr, controller.Options{}); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Node")
-		os.Exit(1)
-	}
-
-	if err := (&controllers.YurtClusterReconciler{
-		Client:         mgr.GetClient(),
-		Log:            ctrl.Log.WithName("controllers").WithName("YurtCluster"),
-		Scheme:         mgr.GetScheme(),
-		NodeName:       opt.NodeName,
-		NodeReconciler: nodeReconciler,
 	}).SetupWithManager(ctx, mgr, controller.Options{}); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "YurtCluster")
+		setupLog.Error(err, "unable to create controller", "controller", "Node")
 		os.Exit(1)
 	}
 }

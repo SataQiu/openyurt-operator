@@ -46,10 +46,6 @@ import (
 	"github.com/openyurtio/openyurt-operator/pkg/kclient"
 )
 
-const (
-	controlPlaneLabel = "node-role.kubernetes.io/master"
-)
-
 var (
 	//go:embed assets/operator-manifests-template.yaml
 	OperatorManifestsTemplate string
@@ -247,11 +243,22 @@ func RenderTemplate(tmpl string, context map[string]string) (string, error) {
 func GetMasterNodes(ctx context.Context, cli client.Client) (*corev1.NodeList, error) {
 	nodes := &corev1.NodeList{}
 	if err := cli.List(ctx, nodes, []client.ListOption{
-		client.HasLabels{controlPlaneLabel},
+		client.HasLabels{constants.ControlPlaneLabel},
 	}...); err != nil {
 		return nil, err
 	}
 	return nodes, nil
+}
+
+// IsMasterNode returns true if the node is control-plane node
+func IsMasterNode(ctx context.Context, cli client.Client, nodeName string) (bool, error) {
+	node := &corev1.Node{}
+	key := types.NamespacedName{Name: nodeName}
+	if err := cli.Get(ctx, key, node); err != nil {
+		return false, err
+	}
+	_, exists := node.Labels[constants.ControlPlaneLabel]
+	return exists, nil
 }
 
 // LoadYurtCluster returns the YurtCluster instance
@@ -357,4 +364,33 @@ func GetNodeLocalDNSImageByName(yurtCluster *operatorv1alpha1.YurtCluster, name 
 		return yurtCluster.Spec.NodeLocalDNSCache.NodeLocalDNSImage
 	}
 	return GetYurtComponentImageByName(yurtCluster, name)
+}
+
+func AddEdgeTaintForNode(node *corev1.Node) {
+	found := false
+	for _, taint := range node.Spec.Taints {
+		if taint.Key == constants.EdgeNodeTaintKey && taint.Effect == constants.EdgeNodeTaintEffect {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		taint := corev1.Taint{
+			Key:    constants.EdgeNodeTaintKey,
+			Effect: constants.EdgeNodeTaintEffect,
+		}
+		node.Spec.Taints = append(node.Spec.Taints, taint)
+	}
+}
+
+func RemoveEdgeTaintForNode(node *corev1.Node) {
+	var newTaints []corev1.Taint
+	for _, taint := range node.Spec.Taints {
+		if taint.Key == constants.EdgeNodeTaintKey && taint.Effect == constants.EdgeNodeTaintEffect {
+			continue
+		}
+		newTaints = append(newTaints, taint)
+	}
+	node.Spec.Taints = newTaints
 }

@@ -1,9 +1,10 @@
 # Image URL to use all building/pushing image targets
 TAG ?= v1.0.0
 REPO ?= registry.cn-hangzhou.aliyuncs.com/ecp_builder
+BUILD_PLATFORMS ?= linux/amd64,linux/arm64,linux/arm/v7
+BUILD_GO_PROXY_ARG ?= GO_PROXY=https://goproxy.cn,direct
 OPERATOR_IMG ?= ${REPO}/openyurt-operator:${TAG}
 AGENT_IMG ?= ${REPO}/openyurt-agent:${TAG}
-NODE_IMG ?= ${REPO}/openyurt-node:${TAG}
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
@@ -77,23 +78,21 @@ vet:
 generate: controller-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
-# Build the docker image
-docker-build: docker-build-operator docker-build-agent docker-build-node
+# Build the docker image in linux/amd64 arch
+docker-build: docker-build-operator docker-build-agent
 
 docker-build-operator:
-	docker build -f Dockerfile . -t ${OPERATOR_IMG} --build-arg GO_PROXY=https://goproxy.cn,direct
-
+	docker buildx build --load --platform linux/amd64 -f Dockerfile . -t ${OPERATOR_IMG} --build-arg ${BUILD_GO_PROXY_ARG}
 docker-build-agent:
-	docker build -f Dockerfile.agent . -t ${AGENT_IMG} --build-arg GO_PROXY=https://goproxy.cn,direct
+	docker buildx build --load --platform linux/amd64 -f Dockerfile.agent . -t ${AGENT_IMG} --build-arg ${BUILD_GO_PROXY_ARG}
 
-docker-build-node:
-	docker build -f Dockerfile.node . -t ${NODE_IMG} --build-arg GO_PROXY=https://goproxy.cn,direct
+# Push the docker images with multi-arch
+docker-push: docker-push-operator docker-push-agent
 
-# Push the docker image
-docker-push: docker-build
-	docker push ${OPERATOR_IMG}
-	docker push ${AGENT_IMG}
-	docker push ${NODE_IMG}
+docker-push-operator:
+	docker buildx build --push --platform ${BUILD_PLATFORMS} -f Dockerfile . -t ${OPERATOR_IMG} --build-arg ${BUILD_GO_PROXY_ARG}
+docker-push-agent:
+	docker buildx build --push --platform ${BUILD_PLATFORMS} -f Dockerfile.agent . -t ${AGENT_IMG} --build-arg ${BUILD_GO_PROXY_ARG}
 
 # find or download controller-gen
 # download controller-gen if necessary

@@ -25,6 +25,8 @@ const (
 	DefaultNodeLocalDNSCacheNodeLocalAddress = "169.254.20.10"
 	// DefaultYurtTunnelPublicPort defines the default public port for tunnel server
 	DefaultYurtTunnelPublicPort = 32502
+	// DefaultNodeLocalDNSCacheUpstreamPublicPort defines the default public port for node local cloud coredns port
+	DefaultNodeLocalDNSCacheUpstreamPublicPort = 30053
 )
 
 var (
@@ -74,5 +76,8 @@ func (o *YurtCluster) ApplyDefault() {
 	}
 	if len(o.Spec.NodeLocalDNSCache.NodeLocalAddress) == 0 {
 		o.Spec.NodeLocalDNSCache.NodeLocalAddress = DefaultNodeLocalDNSCacheNodeLocalAddress
+	}
+	if o.Spec.NodeLocalDNSCache.UpstreamPublicPort == 0 {
+		o.Spec.NodeLocalDNSCache.UpstreamPublicPort = DefaultNodeLocalDNSCacheUpstreamPublicPort
 	}
 }

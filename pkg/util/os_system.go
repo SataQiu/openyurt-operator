@@ -96,3 +96,13 @@ func getProcCmdLineByPid(pid int) (string, error) {
 	}
 	return string(content), nil
 }
+
+// CleanTunnelServerIPTablesRules cleans the iptables rules created by tunnel server
+func CleanTunnelServerIPTablesRules() (string, error) {
+	cmd := `iptables-save | grep -v "TUNNEL-PORT" | iptables-restore`
+	out, err := RunCommandWithCombinedOutput(cmd)
+	if err != nil {
+		return string(out), err
+	}
+	return string(out), nil
+}
