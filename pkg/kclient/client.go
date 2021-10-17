@@ -47,32 +47,42 @@ var ctlClient client.Client
 var dynamicClient dynamic.Interface
 var discoveryClient *discovery.DiscoveryClient
 
-// GetConfig returns the in-cluster config based on the given api server address
-func GetConfig(apiServerAddress string) (*rest.Config, error) {
-	if len(apiServerAddress) != 0 {
-		u, err := url.Parse(apiServerAddress)
-		if err != nil {
-			klog.Errorf("failed to parse URL from %q, %v", apiServerAddress, err)
+// GetConfigWithAPIServerAddress returns the *rest.Config based on the given api server address
+func GetConfigWithAPIServerAddress(apiServerAddress string) (*rest.Config, error) {
+	if len(apiServerAddress) == 0 {
+		return GetConfig()
+	}
+
+	u, err := url.Parse(apiServerAddress)
+	if err != nil {
+		klog.Warningf("failed to parse URL from %q, %v", apiServerAddress, err)
+		return GetConfig()
+	}
+
+	host, port, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		if u.Scheme == "https" {
+			port = "443"
 		} else {
-			host, port, err := net.SplitHostPort(u.Host)
-			if err != nil {
-				if u.Scheme == "https" {
-					port = "443"
-				} else {
-					port = "80"
-				}
-			}
-			os.Setenv("KUBERNETES_SERVICE_HOST", host)
-			os.Setenv("KUBERNETES_SERVICE_PORT", port)
+			port = "80"
 		}
 	}
 
+	os.Setenv("KUBERNETES_SERVICE_HOST", host)
+	os.Setenv("KUBERNETES_SERVICE_PORT", port)
+
+	return GetConfig()
+}
+
+// GetConfig creates a *rest.Config for talking to a Kubernetes apiserver.
+func GetConfig() (*rest.Config, error) {
 	config, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	// Set QPS and Burst to a threshold that ensures the controller runtime client/client go doesn't generate throttling log messages
+	// Set QPS and Burst to a threshold that ensures the controller runtime
+	// client/client go doesn't generate throttling log messages
 	config.QPS = 100
 	config.Burst = 200
 

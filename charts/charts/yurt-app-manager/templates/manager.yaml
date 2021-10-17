@@ -1,0 +1,157 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: yurt-app-webhook-certs
+  namespace: kube-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yurt-app-webhook-service
+  namespace: kube-system
+spec:
+  ports:
+    - name: webhook-server
+      port: 443
+      protocol: TCP
+      targetPort: 9876
+  selector:
+    control-plane: yurt-app-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    control-plane: yurt-app-manager
+  name: yurt-app-manager
+  namespace: kube-system
+spec:
+  replicas: {{ .Values.manager.replicas }}
+  selector:
+    matchLabels:
+      control-plane: yurt-app-manager
+  template:
+    metadata:
+      labels:
+        control-plane: yurt-app-manager
+    spec:
+      serviceAccountName: yurt-app-manager
+      containers:
+        - args:
+            - --enable-leader-election
+            - --v=4
+          command:
+            - /usr/local/bin/yurt-app-manager
+          image: {{ .Values.manager.image }}
+          imagePullPolicy: {{ .Values.manager.imagePullPolicy }}
+          name: manager
+          ports:
+            - containerPort: 9443
+              name: webhook-server
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: cert
+              readOnly: true
+      {{- with .Values.manager.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.manager.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      priorityClassName: system-node-critical
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: yurt-app-webhook-certs
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: yurt-app-mutating-webhook-configuration
+webhooks:
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: yurt-app-webhook-service
+        namespace: kube-system
+        path: /mutate-apps-openyurt-io-v1alpha1-nodepool
+    failurePolicy: Fail
+    name: mnodepool.kb.io
+    rules:
+      - apiGroups:
+          - apps.openyurt.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - nodepools
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: yurt-app-webhook-service
+        namespace: kube-system
+        path: /mutate-apps-openyurt-io-v1alpha1-uniteddeployment
+    failurePolicy: Fail
+    name: muniteddeployment.kb.io
+    rules:
+      - apiGroups:
+          - apps.openyurt.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - uniteddeployments
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: yurt-app-validating-webhook-configuration
+webhooks:
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: yurt-app-webhook-service
+        namespace: kube-system
+        path: /validate-apps-openyurt-io-v1alpha1-nodepool
+    failurePolicy: Fail
+    name: vnodepool.kb.io
+    rules:
+      - apiGroups:
+          - apps.openyurt.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - nodepools
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: yurt-app-webhook-service
+        namespace: kube-system
+        path: /validate-apps-openyurt-io-v1alpha1-uniteddeployment
+    failurePolicy: Fail
+    name: vuniteddeployment.kb.io
+    rules:
+      - apiGroups:
+          - apps.openyurt.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - uniteddeployments

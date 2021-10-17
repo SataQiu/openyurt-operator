@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    control-plane: yurt-operator-manager
+  name: yurt-operator-manager
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: yurt-operator-manager
+  template:
+    metadata:
+      labels:
+        control-plane: yurt-operator-manager
+    spec:
+      tolerations:
+        - operator: Exists
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/master
+                    operator: Exists
+      containers:
+        - command:
+            - /manager
+          image: {{ .Values.operator.image }}
+          imagePullPolicy: {{ .Values.operator.imagePullPolicy }}
+          name: yurt-operator-manager
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 1024Mi
+            requests:
+              cpu: 100m
+              memory: 20Mi
+      serviceAccountName: yurt-operator-manager
+      terminationGracePeriodSeconds: 10

@@ -3,6 +3,6 @@ resources:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
-- name: openyurt-operator
-  newName: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator
-  newTag: v1.0.0
+- name: openyurt-operator-manager
+  newName: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator-manager
+  newTag: v1.0.2

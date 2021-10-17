@@ -24,13 +24,11 @@ import (
 	"fmt"
 	"text/template"
 
-	"github.com/coredns/corefile-migration/migration/corefile"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"k8s.io/apimachinery/pkg/types"
@@ -42,30 +40,26 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	operatorv1alpha1 "github.com/openyurtio/openyurt-operator/api/v1alpha1"
-	"github.com/openyurtio/openyurt-operator/pkg/constants"
 	"github.com/openyurtio/openyurt-operator/pkg/kclient"
 )
 
-var (
-	//go:embed assets/operator-manifests-template.yaml
-	OperatorManifestsTemplate string
+const (
+	// SkipReconcileAnnotation defines the annotation which marks the object should not be reconciled
+	SkipReconcileAnnotation = "operator.openyurt.io/skip-reconcile"
 
-	decUnstructured = yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	// EdgeNodeTaintKey defines the taint key for edge node
+	EdgeNodeTaintKey = "node-role.openyurt.io/edge"
+
+	// EdgeNodeTaintEffect defines the taint effect for edge node
+	EdgeNodeTaintEffect = "NoSchedule"
+
+	// ControlPlaneLabel defines the label for control-plane node
+	ControlPlaneLabel = "node-role.kubernetes.io/master"
 )
 
-// LoadManifestsTemplate loads the operator manifests template from cluster.
-func LoadManifestsTemplate(ctx context.Context) (*corev1.ConfigMap, error) {
-	u, err := Get(ctx, OperatorManifestsTemplate)
-	if err != nil {
-		return nil, errors.Errorf("failed to get operator manifests template, %v", err)
-	}
-	var manifestsTemplate corev1.ConfigMap
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.UnstructuredContent(), &manifestsTemplate); err != nil {
-		return nil, errors.Errorf("failed to convert operator manifests template into ConfigMap, %v", err)
-	}
-
-	return &manifestsTemplate, nil
-}
+var (
+	decUnstructured = yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+)
 
 // ApplyTemplateWithRender renders and applies the manifests into cluster.
 func ApplyTemplateWithRender(ctx context.Context, template *corev1.ConfigMap, dataKey string, values map[string]string) error {
@@ -95,9 +89,11 @@ func Apply(ctx context.Context, yamlContent string) error {
 		klog.Warningf("skip apply %q %q as it contains %q annotation with 'true' value",
 			obj.GetObjectKind().GroupVersionKind().Kind,
 			klog.KObj(obj),
-			constants.SkipReconcileAnnotation)
+			SkipReconcileAnnotation)
 		return nil
 	}
+
+	klog.Infof("apply %q %q", obj.GetObjectKind().GroupVersionKind().Kind, klog.KObj(obj))
 
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(kclient.DiscoveryClient()))
 	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
@@ -119,7 +115,7 @@ func Apply(ctx context.Context, yamlContent string) error {
 
 	force := true
 	_, err = dr.Patch(ctx, obj.GetName(), types.ApplyPatchType, data, metav1.PatchOptions{
-		Force:        &force, // compatible with 1.16, https://github.com/hashicorp/terraform-provider-kubernetes-alpha/issues/130
+		Force:        &force,
 		FieldManager: "last-applied",
 	})
 
@@ -154,9 +150,11 @@ func Delete(ctx context.Context, yamlContent string) error {
 		klog.Warningf("skip delete %q %q as it contains %q annotation with 'true' value",
 			obj.GetObjectKind().GroupVersionKind().Kind,
 			klog.KObj(obj),
-			constants.SkipReconcileAnnotation)
+			SkipReconcileAnnotation)
 		return nil
 	}
+
+	klog.Infof("delete %q %q", obj.GetObjectKind().GroupVersionKind().Kind, klog.KObj(obj))
 
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(kclient.DiscoveryClient()))
 	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
@@ -173,7 +171,7 @@ func Delete(ctx context.Context, yamlContent string) error {
 
 	if _, err := Get(ctx, yamlContent); err != nil {
 		// maybe has been deleted already
-		return nil
+		return nil //nolint
 	}
 
 	return dr.Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
@@ -188,7 +186,7 @@ func ShouldSkip(ctx context.Context, yamlContent string) bool {
 	}
 
 	annotations := obj.GetAnnotations()
-	if v, ok := annotations[constants.SkipReconcileAnnotation]; ok && v == "true" {
+	if v, ok := annotations[SkipReconcileAnnotation]; ok && v == "true" {
 		return true
 	}
 
@@ -239,36 +237,23 @@ func RenderTemplate(tmpl string, context map[string]string) (string, error) {
 	return writer.String(), nil
 }
 
-// GetMasterNodes returns the master nodes
-func GetMasterNodes(ctx context.Context, cli client.Client) (*corev1.NodeList, error) {
+// GetControlPlaneSize returns the size of control-plane
+func GetControlPlaneSize(ctx context.Context, cli client.Client) (int, error) {
 	nodes := &corev1.NodeList{}
 	if err := cli.List(ctx, nodes, []client.ListOption{
-		client.HasLabels{constants.ControlPlaneLabel},
+		client.HasLabels{ControlPlaneLabel},
 	}...); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return nodes, nil
+	return len(nodes.Items), nil
 }
 
-// IsMasterNode returns true if the node is control-plane node
-func IsMasterNode(ctx context.Context, cli client.Client, nodeName string) (bool, error) {
-	node := &corev1.Node{}
-	key := types.NamespacedName{Name: nodeName}
-	if err := cli.Get(ctx, key, node); err != nil {
-		return false, err
+// IsControlPlaneNode returns true when the node is control-plane node
+func IsControlPlaneNode(node *corev1.Node) bool {
+	if _, ok := node.Labels[ControlPlaneLabel]; ok {
+		return true
 	}
-	_, exists := node.Labels[constants.ControlPlaneLabel]
-	return exists, nil
-}
-
-// LoadYurtCluster returns the YurtCluster instance
-func LoadYurtCluster(ctx context.Context) (*operatorv1alpha1.YurtCluster, error) {
-	yurtCluster := &operatorv1alpha1.YurtCluster{}
-	if err := kclient.CtlClient().Get(ctx, types.NamespacedName{Name: constants.SingletonYurtClusterInstanceName}, yurtCluster); err != nil {
-		return nil, err
-	}
-	yurtCluster.ApplyDefault()
-	return yurtCluster, nil
+	return false
 }
 
 // GetNodeCondition extracts the provided condition from the given status and returns that.
@@ -294,82 +279,16 @@ func IsNodeReady(node *corev1.Node) bool {
 	return true
 }
 
-// GetConvertOrRevertPodFromYamlTemplate returns Pod based on the yaml template.
-func GetConvertOrRevertPodFromYamlTemplate(podTmpl string, values map[string]string) (*corev1.Pod, error) {
-	completed, err := RenderTemplate(podTmpl, values)
-	if err != nil {
-		return nil, err
-	}
-	obj, err := YamlToObject([]byte(completed))
-	if err != nil {
-		return nil, err
-	}
-	pod, ok := obj.(*corev1.Pod)
-	if !ok {
-		return nil, fmt.Errorf("fail to assert Pod: %v", err)
-	}
-	return pod, nil
-}
-
-// GetKubeDNSClusterIP returns the cluster IP of kube dns
-func GetKubeDNSClusterIP(ctx context.Context) (string, error) {
-	svc := &corev1.Service{}
-	key := types.NamespacedName{Namespace: "kube-system", Name: "kube-dns"}
-	if err := kclient.CtlClient().Get(ctx, key, svc); err != nil {
-		return "", err
-	}
-	return svc.Spec.ClusterIP, nil
-}
-
-// GetClusterDomain returns the cluster domain according to coredns config map
-func GetClusterDomain(ctx context.Context) (string, error) {
-	cm := &corev1.ConfigMap{}
-	key := types.NamespacedName{Namespace: "kube-system", Name: "coredns"}
-	if err := kclient.CtlClient().Get(ctx, key, cm); err != nil {
-		return "", err
-	}
-	dataKey := "Corefile"
-	coreFileContent, ok := cm.Data[dataKey]
-	if !ok {
-		return "", errors.Errorf("can not find %q key in ConfigMap %v", dataKey, klog.KObj(cm))
-	}
-	cf, err := corefile.New(coreFileContent)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to parse Corefile")
-	}
-	for _, s := range cf.Servers {
-		for _, p := range s.Plugins {
-			if p.Name == "kubernetes" && len(p.Args) > 0 {
-				return p.Args[0], nil
-			}
-		}
-	}
-
-	return "", errors.New("failed to find cluster domain from CoreDNS Config")
-}
-
 // GetYurtComponentImageByName returns the full image name of OpenYurt component
 func GetYurtComponentImageByName(yurtCluster *operatorv1alpha1.YurtCluster, name string) string {
-	return fmt.Sprintf("%s/%s:%s", yurtCluster.Spec.ImageRepository, name, yurtCluster.Spec.Version)
+	return fmt.Sprintf("%s/%s:%s", yurtCluster.Spec.ImageRepository, name, yurtCluster.Spec.YurtVersion)
 }
 
-// GetYurtAppManagerImageByName returns the full image name of Yurt App Manager
-func GetYurtAppManagerImageByName(yurtCluster *operatorv1alpha1.YurtCluster, name string) string {
-	return fmt.Sprintf("%s/%s:%s", yurtCluster.Spec.ImageRepository, name, yurtCluster.Spec.YurtAppManager.Version)
-}
-
-// GetNodeLocalDNSImageByName returns the full image name of NodeLocalDNS
-func GetNodeLocalDNSImageByName(yurtCluster *operatorv1alpha1.YurtCluster, name string) string {
-	if len(yurtCluster.Spec.NodeLocalDNSCache.NodeLocalDNSImage) != 0 {
-		return yurtCluster.Spec.NodeLocalDNSCache.NodeLocalDNSImage
-	}
-	return GetYurtComponentImageByName(yurtCluster, name)
-}
-
-func AddEdgeTaintForNode(node *corev1.Node) {
+// EnsureEdgeTaintForNode adds edge taint for node
+func EnsureEdgeTaintForNode(node *corev1.Node) {
 	found := false
 	for _, taint := range node.Spec.Taints {
-		if taint.Key == constants.EdgeNodeTaintKey && taint.Effect == constants.EdgeNodeTaintEffect {
+		if taint.Key == EdgeNodeTaintKey && taint.Effect == EdgeNodeTaintEffect {
 			found = true
 			break
 		}
@@ -377,17 +296,18 @@ func AddEdgeTaintForNode(node *corev1.Node) {
 
 	if !found {
 		taint := corev1.Taint{
-			Key:    constants.EdgeNodeTaintKey,
-			Effect: constants.EdgeNodeTaintEffect,
+			Key:    EdgeNodeTaintKey,
+			Effect: EdgeNodeTaintEffect,
 		}
 		node.Spec.Taints = append(node.Spec.Taints, taint)
 	}
 }
 
+// RemoveEdgeTaintForNode removes edge taint for node
 func RemoveEdgeTaintForNode(node *corev1.Node) {
 	var newTaints []corev1.Taint
 	for _, taint := range node.Spec.Taints {
-		if taint.Key == constants.EdgeNodeTaintKey && taint.Effect == constants.EdgeNodeTaintEffect {
+		if taint.Key == EdgeNodeTaintKey && taint.Effect == EdgeNodeTaintEffect {
 			continue
 		}
 		newTaints = append(newTaints, taint)

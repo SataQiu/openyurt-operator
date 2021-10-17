@@ -43,6 +43,17 @@ spec:
             imageRepository:
               description: ImageRepository defines the image repository address
               type: string
+            kubeAPIServer:
+              description: KubeAPIServer defines the APIServer address of Kubernetes
+                APIServer
+              properties:
+                domain:
+                  description: Domain defines the domain name of Kubernetes APIServer
+                  type: string
+                publicIP:
+                  description: PublicIP defines the public IP of Kubernetes APIServer
+                  type: string
+              type: object
             nodeLocalDNSCache:
               description: NodeLocalDNSCache defines the configuration for node local
                 dns cache
@@ -132,6 +143,17 @@ spec:
                 imageRepository:
                   description: ImageRepository defines the image repository address
                   type: string
+                kubeAPIServer:
+                  description: KubeAPIServer defines the APIServer address of Kubernetes
+                    APIServer
+                  properties:
+                    domain:
+                      description: Domain defines the domain name of Kubernetes APIServer
+                      type: string
+                    publicIP:
+                      description: PublicIP defines the public IP of Kubernetes APIServer
+                      type: string
+                  type: object
                 nodeLocalDNSCache:
                   description: NodeLocalDNSCache defines the configuration for node
                     local dns cache

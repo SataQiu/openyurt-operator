@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: controller-manager
+  name: manager
   namespace: system
   labels:
-    control-plane: controller-manager
+    control-plane: yurt-operator-manager
 spec:
   selector:
     matchLabels:
-      control-plane: controller-manager
+      control-plane: yurt-operator-manager
   replicas: 1
   template:
     metadata:
       labels:
-        control-plane: controller-manager
+        control-plane: yurt-operator-manager
     spec:
       tolerations:
         - operator: Exists
@@ -28,15 +28,9 @@ spec:
       containers:
       - command:
         - /manager
-        args:
-        - --yurt-agent-image=registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.0
-        - --yurt-node-image=registry.cn-hangzhou.aliyuncs.com/ecp_builder/alpine:3.12.0
-        - --yurt-agent-image-pull-policy=Always
-        - --yurt-node-image-pull-policy=IfNotPresent
-        - --yurt-task-health-check-timeout=5m
-        image: openyurt-operator:v1.0.0
+        image: openyurt-operator-manager:v1.0.2
         imagePullPolicy: IfNotPresent
-        name: manager
+        name: yurt-operator-manager
         resources:
           limits:
             cpu: 1000m

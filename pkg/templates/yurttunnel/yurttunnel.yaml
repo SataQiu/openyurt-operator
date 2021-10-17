@@ -1,0 +1,371 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    operator.openyurt.io/skip-reconcile: "true"
+  name: yurt-operator-yurt-tunnel-template
+  namespace: kube-system
+data:
+  yurt-tunnel-server-service-account: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: yurt-tunnel-server
+      namespace: kube-system
+  yurt-tunnel-server-cluster-role: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      annotations:
+        rbac.authorization.kubernetes.io/autoupdate: "true"
+      name: yurt-tunnel-server
+    rules:
+    - apiGroups:
+      - certificates.k8s.io
+      resources:
+      - certificatesigningrequests
+      - certificatesigningrequests/approval
+      verbs:
+      - create
+      - get
+      - list
+      - watch
+      - delete
+      - update
+      - patch
+    - apiGroups:
+      - certificates.k8s.io
+      resources:
+      - signers
+      resourceNames:
+      - "kubernetes.io/legacy-unknown"
+      verbs:
+      - approve
+    - apiGroups:
+      - ""
+      resources:
+      - endpoints
+      verbs:
+      - get
+    - apiGroups:
+      - ""
+      resources:
+      - nodes
+      verbs:
+      - list
+      - watch
+    - apiGroups:
+      - ""
+      resources:
+      - services
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - ""
+      resources:
+      - configmaps
+      verbs:
+      - list
+      - watch
+      - get
+      - create
+      - update
+    - apiGroups:
+      - "coordination.k8s.io"
+      resources:
+      - leases
+      verbs:
+      - create
+      - get
+      - update
+  yurt-tunnel-server-cluster-role-binding: |
+    kind: ClusterRoleBinding
+    apiVersion: rbac.authorization.k8s.io/v1beta1
+    metadata:
+      name: yurt-tunnel-server
+    subjects:
+      - kind: ServiceAccount
+        name: yurt-tunnel-server
+        namespace: kube-system
+    roleRef:
+      kind: ClusterRole
+      name: yurt-tunnel-server
+      apiGroup: rbac.authorization.k8s.io
+  yurt-tunnel-server-svc: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: x-tunnel-server-svc
+      namespace: kube-system
+      labels:
+        name: yurt-tunnel-server
+      {{ if .publicIP }}
+      annotations:
+        x-tunnel-server-external-addr: {{ .publicIP }}:{{ .publicPort }}
+      {{ end }}
+    spec:
+      {{ if .publicIP }}
+      type: ClusterIP
+      {{ else }}
+      type: NodePort
+      {{ end }}
+      ports:
+      - port: 10263
+        protocol: TCP
+        targetPort: 10263
+        name: https
+      {{ if .publicIP }}
+      - port: {{ .publicPort }}
+      {{ else }}
+      - port: 10262
+      {{ end }}
+        protocol: TCP
+        targetPort: 10262
+        name: tcp
+      selector:
+        k8s-app: yurt-tunnel-server
+  yurt-tunnel-server-nodeport-svc: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: x-tunnel-server-svc-nodeport
+      namespace: kube-system
+      labels:
+        name: yurt-tunnel-server
+    spec:
+      type: NodePort
+      ports:
+      - port: 10263
+        protocol: TCP
+        targetPort: 10263
+        name: https
+      - port: {{ .publicPort }}
+        protocol: TCP
+        targetPort: 10262
+        nodePort: {{ .publicPort }}
+        name: tcp
+      selector:
+        k8s-app: yurt-tunnel-server
+  yurt-tunnel-server-internal-svc: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: x-tunnel-server-internal-svc
+      namespace: kube-system
+      annotations:
+        operator.openyurt.io/skip-reconcile: "true"
+      labels:
+        name: yurt-tunnel-server
+    spec:
+      ports:
+        - port: 10250
+          protocol: TCP
+          targetPort: 10263
+          name: https
+        - port: 10255
+          protocol: TCP
+          targetPort: 10264
+          name: http
+      selector:
+        k8s-app: yurt-tunnel-server
+  yurt-tunnel-server-cfg: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: yurt-tunnel-server-cfg
+      namespace: kube-system
+      annotations:
+        operator.openyurt.io/skip-reconcile: "true"
+    data:
+      localhost-proxy-ports: "10266, 10267"
+      http-proxy-ports: ""
+      https-proxy-ports: ""
+      dnat-ports-pair: ""
+  yurt-tunnel-server-daemonset: |
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: yurt-tunnel-server
+      namespace: kube-system
+      labels:
+        k8s-app: yurt-tunnel-server
+    spec:
+      selector:
+        matchLabels:
+          k8s-app: yurt-tunnel-server
+      template:
+        metadata:
+          labels:
+            k8s-app: yurt-tunnel-server
+        spec:
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    k8s-app: yurt-tunnel-server
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: node-role.kubernetes.io/master
+                        operator: Exists
+          hostNetwork: true
+          serviceAccountName: yurt-tunnel-server
+          restartPolicy: Always
+          volumes:
+          - name: tunnel-server-dir
+            hostPath:
+              path: /var/lib/yurttunnel-server
+              type: DirectoryOrCreate
+          tolerations:
+          - operator: "Exists"
+          nodeSelector:
+            {{ .edgeNodeLabel }}: "false"
+          containers:
+          - name: yurt-tunnel-server
+            image: {{ .yurtTunnelServerImage }}
+            command:
+            - yurt-tunnel-server
+            args:
+            - --bind-address=$(NODE_IP)
+            - --server-count={{ .yurtTunnelServerCount }}
+            - --proxy-strategy=destHost
+            - --v=2
+            env:
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            securityContext:
+              capabilities:
+                add: ["NET_ADMIN", "NET_RAW"]
+            volumeMounts:
+            - name: tunnel-server-dir
+              mountPath: /var/lib/yurttunnel-server
+  yurt-tunnel-server-deployment: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: yurt-tunnel-server
+      namespace: kube-system
+      labels:
+        k8s-app: yurt-tunnel-server
+    spec:
+      replicas: {{ .yurtTunnelServerDeploymentReplicas }}
+      selector:
+        matchLabels:
+          k8s-app: yurt-tunnel-server
+      template:
+        metadata:
+          labels:
+            k8s-app: yurt-tunnel-server
+        spec:
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    k8s-app: yurt-tunnel-server
+          hostNetwork: true
+          serviceAccountName: yurt-tunnel-server
+          restartPolicy: Always
+          volumes:
+          - name: tunnel-server-dir
+            hostPath:
+              path: /var/lib/yurttunnel-server
+              type: DirectoryOrCreate
+          tolerations:
+          - operator: "Exists"
+          nodeSelector:
+            {{ .edgeNodeLabel }}: "false"
+          containers:
+          - name: yurt-tunnel-server
+            image: {{ .yurtTunnelServerImage }}
+            command:
+            - yurt-tunnel-server
+            args:
+            - --bind-address=$(NODE_IP)
+            - --server-count={{ .yurtTunnelServerCount }}
+            - --proxy-strategy=destHost
+            - --v=2
+            env:
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            securityContext:
+              capabilities:
+                add: ["NET_ADMIN", "NET_RAW"]
+            volumeMounts:
+            - name: tunnel-server-dir
+              mountPath: /var/lib/yurttunnel-server
+  yurt-tunnel-agent-daemonset: |
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      labels:
+        k8s-app: yurt-tunnel-agent
+      name: yurt-tunnel-agent
+      namespace: kube-system
+    spec:
+      selector:
+        matchLabels:
+          k8s-app: yurt-tunnel-agent
+      template:
+        metadata:
+          labels:
+            k8s-app: yurt-tunnel-agent
+        spec:
+          nodeSelector:
+            {{ .edgeNodeLabel }}: "true"
+          containers:
+          - command:
+            - yurt-tunnel-agent
+            args:
+            - --node-name=$(NODE_NAME)
+            - --node-ip=$(POD_IP)
+            - --v=2
+            image: {{ .yurtTunnelAgentImage }}
+            name: yurt-tunnel-agent
+            volumeMounts:
+            - name: k8s-dir
+              mountPath: /etc/kubernetes
+            - name: kubelet-pki
+              mountPath: /var/lib/kubelet/pki
+            - name: tunnel-agent-dir
+              mountPath: /var/lib/yurttunnel-agent
+            env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          hostNetwork: true
+          restartPolicy: Always
+          tolerations:
+            - operator: Exists
+          volumes:
+          - name: k8s-dir
+            hostPath:
+              path: /etc/kubernetes
+              type: Directory
+          - name: kubelet-pki
+            hostPath:
+              path: /var/lib/kubelet/pki
+              type: Directory
+          - name: tunnel-agent-dir
+            hostPath:
+              path: /var/lib/yurttunnel-agent
+              type: DirectoryOrCreate

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    k8s-app: yurt-operator-agent
+  name: yurt-operator-agent
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: yurt-operator-agent
+  template:
+    metadata:
+      labels:
+        k8s-app: yurt-operator-agent
+    spec:
+      volumes:
+        - name: host-var-tmp
+          hostPath:
+            path: /var/tmp
+            type: Directory
+        - name: kubernetes
+          hostPath:
+            path: /etc/kubernetes
+            type: Directory
+      initContainers:
+        - command:
+            - sh
+            - -c
+            - |
+              cp /assets/* /tmp/
+          image: {{ .Values.agent.image }}
+          imagePullPolicy: {{ .Values.agent.imagePullPolicy }}
+          name: yurt-operator-prepare
+          volumeMounts:
+            - mountPath: /tmp
+              name: host-var-tmp
+      containers:
+        - command:
+            - /agent
+          args:
+            - --node-name=$(NODE_NAME)
+            - --trans-health-check-timeout={{ .Values.agent.transHealthCheckTimeout }}
+          image: {{ .Values.agent.image }}
+          imagePullPolicy: {{ .Values.agent.imagePullPolicy }}
+          name: yurt-operator-agent
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: host-var-tmp
+            - mountPath: /etc/kubernetes
+              name: kubernetes
+      hostNetwork: true
+      hostPID: true
+      serviceAccountName: yurt-operator-agent
+      restartPolicy: Always
+      tolerations:
+        - operator: Exists

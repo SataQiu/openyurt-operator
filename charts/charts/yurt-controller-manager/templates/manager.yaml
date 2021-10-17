@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yurt-controller-manager
+  namespace: kube-system
+spec:
+  replicas: {{ .Values.manager.replicas }}
+  selector:
+    matchLabels:
+      app: yurt-controller-manager
+  template:
+    metadata:
+      labels:
+        app: yurt-controller-manager
+    spec:
+      serviceAccountName: yurt-controller-manager
+      {{- with .Values.manager.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.manager.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: yurt-controller-manager
+          image: {{ .Values.manager.image }}
+          imagePullPolicy: {{ .Values.manager.imagePullPolicy }}
+          command:
+            - yurt-controller-manager

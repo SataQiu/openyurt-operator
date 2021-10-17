@@ -1,10 +1,13 @@
 # Image URL to use all building/pushing image targets
-TAG ?= v1.0.0
+TAG ?= v1.0.2
 REPO ?= registry.cn-hangzhou.aliyuncs.com/ecp_builder
+MANAGER_IMG ?= ${REPO}/openyurt-operator-manager:${TAG}
+AGENT_IMG ?= ${REPO}/openyurt-operator-agent:${TAG}
+
+# Build linux/amd64 arch with `make release-artifacts BUILD_PLATFORMS=linux/amd64`
 BUILD_PLATFORMS ?= linux/amd64,linux/arm64,linux/arm/v7
 BUILD_GO_PROXY_ARG ?= GO_PROXY=https://goproxy.cn,direct
-OPERATOR_IMG ?= ${REPO}/openyurt-operator:${TAG}
-AGENT_IMG ?= ${REPO}/openyurt-agent:${TAG}
+
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
@@ -23,7 +26,7 @@ test: generate fmt vet manifests
 
 # Build manager binary
 manager: generate fmt vet
-	go build -o bin/manager cmd/operator/operator.go
+	go build -o bin/manager cmd/manager/manager.go
 
 # Build agent binary
 agent: generate fmt vet
@@ -35,7 +38,7 @@ edgectl: generate fmt vet
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: generate fmt vet manifests
-	go run ./cmd/operator/operator.go
+	go run ./cmd/manager/manager.go
 
 # Install CRDs into a cluster
 install: manifests
@@ -47,24 +50,24 @@ uninstall: manifests
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy: manifests
-	cd config/manager && kustomize edit set image openyurt-operator=${OPERATOR_IMG}
+	cd config/manager && kustomize edit set image openyurt-operator-manager=${MANAGER_IMG}
+	cd config/agent && kustomize edit set image openyurt-operator-agent=${AGENT_IMG}
 	kustomize build config/default | kubectl apply -f -
 
 # Release manifests into docs/manifests and push docker image to dockerhub
-release-artifacts: manifests docker-push
-	cd config/manager && kustomize edit set image openyurt-operator=${OPERATOR_IMG}
-	cp config/crd/bases/* charts/crds/
-	kustomize build config/default > docs/manifests/${TAG}/deploy.yaml
+release-artifacts: docker-push release-manifests
 
-# Release manifests into docs/manifests and save docker images locally
-release-local: manifests docker-build
-	cd config/manager && kustomize edit set image openyurt-operator=${OPERATOR_IMG}
-	cp config/crd/bases/* charts/crds/
+# Release manifests into docs/manifests
+release-manifests: manifests
+	cd config/manager && kustomize edit set image openyurt-operator-manager=${MANAGER_IMG}
+	cd config/agent && kustomize edit set image openyurt-operator-agent=${AGENT_IMG}
 	kustomize build config/default > docs/manifests/${TAG}/deploy.yaml
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." \
+		output:crd:artifacts:config=config/crd/bases
+	cp config/crd/bases/* charts/crds/
 
 # Run go fmt against code
 fmt:
@@ -74,25 +77,33 @@ fmt:
 vet:
 	go vet ./...
 
+# Lint codebase
+lint: golangci-lint
+	$(GOLANGCI_LINT) run
+
 # Generate code
 generate: controller-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
-# Build the docker image in linux/amd64 arch
-docker-build: docker-build-operator docker-build-agent
+# Build the docker image
+docker-build: docker-build-manager docker-build-agent
 
-docker-build-operator:
-	docker buildx build --load --platform linux/amd64 -f Dockerfile . -t ${OPERATOR_IMG} --build-arg ${BUILD_GO_PROXY_ARG}
+docker-build-manager:
+	docker buildx build --load --platform ${BUILD_PLATFORMS} -f Dockerfile . -t ${MANAGER_IMG} \
+		--build-arg ${BUILD_GO_PROXY_ARG}
 docker-build-agent:
-	docker buildx build --load --platform linux/amd64 -f Dockerfile.agent . -t ${AGENT_IMG} --build-arg ${BUILD_GO_PROXY_ARG}
+	docker buildx build --load --platform ${BUILD_PLATFORMS} -f Dockerfile.agent . -t ${AGENT_IMG} \
+		--build-arg ${BUILD_GO_PROXY_ARG}
 
 # Push the docker images with multi-arch
-docker-push: docker-push-operator docker-push-agent
+docker-push: docker-push-manager docker-push-agent
 
-docker-push-operator:
-	docker buildx build --push --platform ${BUILD_PLATFORMS} -f Dockerfile . -t ${OPERATOR_IMG} --build-arg ${BUILD_GO_PROXY_ARG}
+docker-push-manager:
+	docker buildx build --push --platform ${BUILD_PLATFORMS} -f Dockerfile . -t ${MANAGER_IMG} \
+		--build-arg ${BUILD_GO_PROXY_ARG}
 docker-push-agent:
-	docker buildx build --push --platform ${BUILD_PLATFORMS} -f Dockerfile.agent . -t ${AGENT_IMG} --build-arg ${BUILD_GO_PROXY_ARG}
+	docker buildx build --push --platform ${BUILD_PLATFORMS} -f Dockerfile.agent . -t ${AGENT_IMG} \
+		--build-arg ${BUILD_GO_PROXY_ARG}
 
 # find or download controller-gen
 # download controller-gen if necessary
@@ -109,4 +120,20 @@ ifeq (, $(shell which controller-gen))
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
+endif
+
+# find or download golangci-lint
+golangci-lint:
+ifeq (, $(shell which golangci-lint))
+	@{ \
+	set -e ;\
+	GOLANGCI_LINT_TMP_DIR=$$(mktemp -d) ;\
+	cd $$GOLANGCI_LINT_TMP_DIR ;\
+	go mod init tmp ;\
+	go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.1 ;\
+	rm -rf $$GOLANGCI_LINT_TMP_DIR ;\
+	}
+GOLANGCI_LINT=$(GOBIN)/golangci-lint
+else
+GOLANGCI_LINT=$(shell which golangci-lint)
 endif

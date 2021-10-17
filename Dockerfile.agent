@@ -21,8 +21,8 @@ COPY cmd ./cmd
 COPY pkg ./pkg
 
 # Build
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GO111MODULE=on go build -a -o agent cmd/agent/agent.go
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GO111MODULE=on go build -a -o edgectl cmd/edgectl/edgectl.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GO111MODULE=on go build -a -o agent cmd/agent/agent.go
 
 FROM alpine:3.12.0
 WORKDIR /

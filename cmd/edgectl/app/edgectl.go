@@ -16,7 +16,11 @@ limitations under the License.
 
 package app
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+
+	"github.com/openyurtio/openyurt-operator/cmd/edgectl/app/cmd"
+)
 
 // NewEdgectlCommand returns cobra.Command to run edgectl command
 func NewEdgectlCommand() *cobra.Command {
@@ -26,8 +30,8 @@ func NewEdgectlCommand() *cobra.Command {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
-	cmds.AddCommand(newCmdConvert(nil))
-	cmds.AddCommand(newCmdRevert(nil))
+	cmds.AddCommand(cmd.NewCmdConvert())
+	cmds.AddCommand(cmd.NewCmdRevert())
 
 	return cmds
 }

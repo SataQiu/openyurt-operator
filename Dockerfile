@@ -21,7 +21,7 @@ COPY cmd ./cmd
 COPY pkg ./pkg
 
 # Build
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GO111MODULE=on go build -a -o manager cmd/operator/operator.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GO111MODULE=on go build -a -o manager cmd/manager/manager.go
 
 FROM alpine:3.12.0
 WORKDIR /

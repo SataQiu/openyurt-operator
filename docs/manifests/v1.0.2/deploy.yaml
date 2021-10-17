@@ -1,0 +1,913 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.5
+  creationTimestamp: null
+  name: yurtclusters.operator.openyurt.io
+spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.phase
+    name: PHASE
+    type: string
+  group: operator.openyurt.io
+  names:
+    kind: YurtCluster
+    listKind: YurtClusterList
+    plural: yurtclusters
+    shortNames:
+    - yc
+    singular: yurtcluster
+  scope: Cluster
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: YurtCluster is the Schema for the yurtclusters API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: YurtClusterSpec defines the desired state of YurtCluster
+          properties:
+            cloudNodes:
+              description: CloudNodes defines the node set with cloud role.
+              properties:
+                excludedNamePattern:
+                  description: ExcludedNamePattern defines the regular expression
+                    to exclude nodes based on node name
+                  type: string
+                excludedNames:
+                  description: ExcludedNames defines the node names to be excluded
+                  items:
+                    type: string
+                  type: array
+                namePattern:
+                  description: NamePattern defines the regular expression to select
+                    nodes based on node name
+                  type: string
+                names:
+                  description: Names defines the node names to be selected
+                  items:
+                    type: string
+                  type: array
+                selector:
+                  description: Selector defines the label selector to select nodes
+                  properties:
+                    nodeSelectorTerms:
+                      description: Required. A list of node selector terms. The terms
+                        are ORed.
+                      items:
+                        description: A null or empty node selector term matches no
+                          objects. The requirements of them are ANDed. The TopologySelectorTerm
+                          type implements a subset of the NodeSelectorTerm.
+                        properties:
+                          matchExpressions:
+                            description: A list of node selector requirements by node's
+                              labels.
+                            items:
+                              description: A node selector requirement is a selector
+                                that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: The label key that the selector applies
+                                    to.
+                                  type: string
+                                operator:
+                                  description: Represents a key's relationship to
+                                    a set of values. Valid operators are In, NotIn,
+                                    Exists, DoesNotExist. Gt, and Lt.
+                                  type: string
+                                values:
+                                  description: An array of string values. If the operator
+                                    is In or NotIn, the values array must be non-empty.
+                                    If the operator is Exists or DoesNotExist, the
+                                    values array must be empty. If the operator is
+                                    Gt or Lt, the values array must have a single
+                                    element, which will be interpreted as an integer.
+                                    This array is replaced during a strategic merge
+                                    patch.
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                          matchFields:
+                            description: A list of node selector requirements by node's
+                              fields.
+                            items:
+                              description: A node selector requirement is a selector
+                                that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: The label key that the selector applies
+                                    to.
+                                  type: string
+                                operator:
+                                  description: Represents a key's relationship to
+                                    a set of values. Valid operators are In, NotIn,
+                                    Exists, DoesNotExist. Gt, and Lt.
+                                  type: string
+                                values:
+                                  description: An array of string values. If the operator
+                                    is In or NotIn, the values array must be non-empty.
+                                    If the operator is Exists or DoesNotExist, the
+                                    values array must be empty. If the operator is
+                                    Gt or Lt, the values array must have a single
+                                    element, which will be interpreted as an integer.
+                                    This array is replaced during a strategic merge
+                                    patch.
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                        type: object
+                      type: array
+                  required:
+                  - nodeSelectorTerms
+                  type: object
+              type: object
+            edgeNodes:
+              description: EdgeNodes defines the node set with edge role.
+              properties:
+                excludedNamePattern:
+                  description: ExcludedNamePattern defines the regular expression
+                    to exclude nodes based on node name
+                  type: string
+                excludedNames:
+                  description: ExcludedNames defines the node names to be excluded
+                  items:
+                    type: string
+                  type: array
+                namePattern:
+                  description: NamePattern defines the regular expression to select
+                    nodes based on node name
+                  type: string
+                names:
+                  description: Names defines the node names to be selected
+                  items:
+                    type: string
+                  type: array
+                selector:
+                  description: Selector defines the label selector to select nodes
+                  properties:
+                    nodeSelectorTerms:
+                      description: Required. A list of node selector terms. The terms
+                        are ORed.
+                      items:
+                        description: A null or empty node selector term matches no
+                          objects. The requirements of them are ANDed. The TopologySelectorTerm
+                          type implements a subset of the NodeSelectorTerm.
+                        properties:
+                          matchExpressions:
+                            description: A list of node selector requirements by node's
+                              labels.
+                            items:
+                              description: A node selector requirement is a selector
+                                that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: The label key that the selector applies
+                                    to.
+                                  type: string
+                                operator:
+                                  description: Represents a key's relationship to
+                                    a set of values. Valid operators are In, NotIn,
+                                    Exists, DoesNotExist. Gt, and Lt.
+                                  type: string
+                                values:
+                                  description: An array of string values. If the operator
+                                    is In or NotIn, the values array must be non-empty.
+                                    If the operator is Exists or DoesNotExist, the
+                                    values array must be empty. If the operator is
+                                    Gt or Lt, the values array must have a single
+                                    element, which will be interpreted as an integer.
+                                    This array is replaced during a strategic merge
+                                    patch.
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                          matchFields:
+                            description: A list of node selector requirements by node's
+                              fields.
+                            items:
+                              description: A node selector requirement is a selector
+                                that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: The label key that the selector applies
+                                    to.
+                                  type: string
+                                operator:
+                                  description: Represents a key's relationship to
+                                    a set of values. Valid operators are In, NotIn,
+                                    Exists, DoesNotExist. Gt, and Lt.
+                                  type: string
+                                values:
+                                  description: An array of string values. If the operator
+                                    is In or NotIn, the values array must be non-empty.
+                                    If the operator is Exists or DoesNotExist, the
+                                    values array must be empty. If the operator is
+                                    Gt or Lt, the values array must have a single
+                                    element, which will be interpreted as an integer.
+                                    This array is replaced during a strategic merge
+                                    patch.
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                        type: object
+                      type: array
+                  required:
+                  - nodeSelectorTerms
+                  type: object
+              type: object
+            imageRepository:
+              description: ImageRepository sets the container registry to pull images
+                from. If empty, `docker.io/openyurt` will be used by default
+              type: string
+            yurtHub:
+              description: YurtHub defines the configuration for yurt-hub
+              properties:
+                cloud:
+                  description: Cloud defines the yurt-hub configuration about cloud
+                    nodes
+                  properties:
+                    enabled:
+                      description: Enabled indicates whether the yurt component has
+                        been enabled
+                      type: boolean
+                    extraArgs:
+                      additionalProperties:
+                        type: string
+                      description: ExtraArgs is an extra set of flags to pass to the
+                        OpenYurt component. A key in this map is the flag name as
+                        it appears on the command line except without leading dash(es).
+                      type: object
+                    repository:
+                      description: Repository sets the container registry to pull
+                        images from. If not set, the ImageRepository defined in YurtClusterSpec
+                        will be used instead.
+                      type: string
+                    tag:
+                      description: Tag allows to specify a tag for the image. If not
+                        set, the tag related to the YurtVersion defined in YurtClusterSpec
+                        will be used instead.
+                      type: string
+                  type: object
+                edge:
+                  description: Edge defines the yurt-hub configuration about edge
+                    nodes
+                  properties:
+                    enabled:
+                      description: Enabled indicates whether the yurt component has
+                        been enabled
+                      type: boolean
+                    extraArgs:
+                      additionalProperties:
+                        type: string
+                      description: ExtraArgs is an extra set of flags to pass to the
+                        OpenYurt component. A key in this map is the flag name as
+                        it appears on the command line except without leading dash(es).
+                      type: object
+                    repository:
+                      description: Repository sets the container registry to pull
+                        images from. If not set, the ImageRepository defined in YurtClusterSpec
+                        will be used instead.
+                      type: string
+                    tag:
+                      description: Tag allows to specify a tag for the image. If not
+                        set, the tag related to the YurtVersion defined in YurtClusterSpec
+                        will be used instead.
+                      type: string
+                  type: object
+                kubeadmConfPath:
+                  description: KubeadmConfPath defines the path to kubelet service
+                    conf that is used by kubelet component to join the cluster on
+                    the edge node
+                  type: string
+                podManifestsPath:
+                  description: PodManifestsPath defines the path to the directory
+                    on edge node containing static pod files
+                  type: string
+              type: object
+            yurtTunnel:
+              description: YurtTunnel defines the configuration for yurt tunnel
+              properties:
+                agent:
+                  description: Agent defines the configuration for tunnel agent
+                  properties:
+                    enabled:
+                      description: Enabled indicates whether the yurt component has
+                        been enabled
+                      type: boolean
+                    extraArgs:
+                      additionalProperties:
+                        type: string
+                      description: ExtraArgs is an extra set of flags to pass to the
+                        OpenYurt component. A key in this map is the flag name as
+                        it appears on the command line except without leading dash(es).
+                      type: object
+                    repository:
+                      description: Repository sets the container registry to pull
+                        images from. If not set, the ImageRepository defined in YurtClusterSpec
+                        will be used instead.
+                      type: string
+                    tag:
+                      description: Tag allows to specify a tag for the image. If not
+                        set, the tag related to the YurtVersion defined in YurtClusterSpec
+                        will be used instead.
+                      type: string
+                  type: object
+                server:
+                  description: Server defines the configuration for tunnel server
+                  properties:
+                    enabled:
+                      description: Enabled indicates whether the yurt component has
+                        been enabled
+                      type: boolean
+                    extraArgs:
+                      additionalProperties:
+                        type: string
+                      description: ExtraArgs is an extra set of flags to pass to the
+                        OpenYurt component. A key in this map is the flag name as
+                        it appears on the command line except without leading dash(es).
+                      type: object
+                    publicIP:
+                      description: PublicIP defines the public IP for tunnel server
+                        listen on. If this field is empty, the tunnel agent will use
+                        NodePort Service to connect to the tunnel server.
+                      type: string
+                    publicPort:
+                      description: PublicPort defines the public port for tunnel server
+                        listen on.
+                      type: integer
+                    repository:
+                      description: Repository sets the container registry to pull
+                        images from. If not set, the ImageRepository defined in YurtClusterSpec
+                        will be used instead.
+                      type: string
+                    serverCount:
+                      description: ServerCount defines the replicas for the tunnel
+                        server Pod. Its value should be greater than or equal to the
+                        number of API Server. Operator will automatically override
+                        this value if it is less than the number of API Server.
+                      type: integer
+                    tag:
+                      description: Tag allows to specify a tag for the image. If not
+                        set, the tag related to the YurtVersion defined in YurtClusterSpec
+                        will be used instead.
+                      type: string
+                  type: object
+              type: object
+            yurtVersion:
+              description: YurtVersion is the target version of OpenYurt
+              type: string
+          type: object
+        status:
+          description: YurtClusterStatus defines the observed state of YurtCluster
+          properties:
+            failureMessage:
+              description: FailureMessage indicates that there is a fatal problem
+                reconciling the state, and will be set to a descriptive error message.
+              type: string
+            failureReason:
+              description: FailureReason indicates that there is a problem reconciling
+                the state, and will be set to a token value suitable for programmatic
+                interpretation.
+              type: string
+            nodeConditions:
+              additionalProperties:
+                description: NodeCondition describes the state of a node at a certain
+                  point
+                properties:
+                  lastTransitionTime:
+                    description: The last time this condition was updated.
+                    format: date-time
+                    type: string
+                  message:
+                    description: A human readable message indicating details about
+                      the transition.
+                    type: string
+                  observedGeneration:
+                    description: The generation observed by the node agent controller.
+                    format: int64
+                    type: integer
+                  reason:
+                    description: The reason for the condition's last transition.
+                    type: string
+                  status:
+                    description: The status for the condition's last transition.
+                    type: string
+                type: object
+              description: NodeConditions holds the info about node conditions
+              type: object
+            observedGeneration:
+              description: The generation observed by the operator controller.
+              format: int64
+              type: integer
+            phase:
+              description: Phase represents the current phase of the yurt cluster
+              type: string
+          type: object
+      type: object
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: yurt-operator-agent
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: yurt-operator-manager
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  name: yurt-operator-agent
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - configmaps
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update
+- apiGroups:
+  - ""
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - serviceaccounts
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterroles
+  - clusterrolebindings
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - operator.openyurt.io
+  resources:
+  - yurtclusters
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operator.openyurt.io
+  resources:
+  - yurtclusters/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: yurt-operator-manager
+rules:
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - csidrivers
+  - csinodes
+  - volumeattachments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - node.k8s.io
+  resources:
+  - runtimeclasses
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - node.k8s.io
+  resources:
+  - runtimeclasses
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  - localsubjectaccessreviews
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps.openyurt.io
+  resources:
+  - nodepools
+  - uniteddeployments
+  - nodepools/status
+  - uniteddeployments/status
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - certificates.k8s.io
+  resourceNames:
+  - kubernetes.io/legacy-unknown
+  resources:
+  - signers
+  verbs:
+  - approve
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  - certificatesigningrequests/approval
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - statefulsets
+  - controllerrevisions
+  - deployments/status
+  - statefulsets/status
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  - rolebindings
+  - clusterroles
+  - clusterrolebindings
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - serviceaccounts
+  - configmaps
+  - services
+  - pods
+  - pods/status
+  - pods/eviction
+  - nodes
+  - nodes/status
+  - endpoints
+  - persistentvolumeclaims
+  - persistentvolumeclaims/status
+  - persistentvolumes
+  - secrets
+  - serviceaccounts/token
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - operator.openyurt.io
+  resources:
+  - yurtclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operator.openyurt.io
+  resources:
+  - yurtclusters/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: yurt-operator-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: yurt-operator-agent
+subjects:
+- kind: ServiceAccount
+  name: yurt-operator-agent
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: yurt-operator-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: yurt-operator-manager
+subjects:
+- kind: ServiceAccount
+  name: yurt-operator-manager
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    control-plane: yurt-operator-manager
+  name: yurt-operator-manager
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: yurt-operator-manager
+  template:
+    metadata:
+      labels:
+        control-plane: yurt-operator-manager
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+      containers:
+      - command:
+        - /manager
+        image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator-manager:v1.0.2
+        imagePullPolicy: IfNotPresent
+        name: yurt-operator-manager
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1024Mi
+          requests:
+            cpu: 100m
+            memory: 20Mi
+      serviceAccountName: yurt-operator-manager
+      terminationGracePeriodSeconds: 10
+      tolerations:
+      - operator: Exists
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    k8s-app: yurt-operator-agent
+  name: yurt-operator-agent
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: yurt-operator-agent
+  template:
+    metadata:
+      labels:
+        k8s-app: yurt-operator-agent
+    spec:
+      containers:
+      - args:
+        - --node-name=$(NODE_NAME)
+        command:
+        - /agent
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator-agent:v1.0.2
+        imagePullPolicy: IfNotPresent
+        name: yurt-operator-agent
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1024Mi
+          requests:
+            cpu: 100m
+            memory: 20Mi
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /tmp
+          name: host-var-tmp
+        - mountPath: /etc/kubernetes
+          name: kubernetes
+      hostNetwork: true
+      hostPID: true
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - |
+          cp /assets/* /tmp/
+        image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator-agent:v1.0.2
+        imagePullPolicy: IfNotPresent
+        name: yurt-operator-prepare
+        volumeMounts:
+        - mountPath: /tmp
+          name: host-var-tmp
+      restartPolicy: Always
+      serviceAccountName: yurt-operator-agent
+      tolerations:
+      - operator: Exists
+      volumes:
+      - hostPath:
+          path: /var/tmp
+          type: Directory
+        name: host-var-tmp
+      - hostPath:
+          path: /etc/kubernetes
+          type: Directory
+        name: kubernetes

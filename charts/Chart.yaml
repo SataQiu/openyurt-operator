@@ -4,5 +4,5 @@ type: application
 maintainers:
   - name: shida.qsd
     email: shida.qsd@alibaba-inc.com
-version: 1.0.0
-appVersion: 1.0.0
+version: 1.0.2
+appVersion: 1.0.2

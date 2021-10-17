@@ -1,0 +1,16 @@
+# Default values for yurt-controller-manager chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+manager:
+  replicas: 3
+  image: "openyurt/yurt-controller-manager:v0.5.0"
+  imagePullPolicy: IfNotPresent
+  nodeSelector:
+    openyurt.io/is-edge-worker: "false"
+    beta.kubernetes.io/arch: amd64
+    beta.kubernetes.io/os: linux
+  tolerations:
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule

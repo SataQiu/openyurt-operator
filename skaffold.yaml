@@ -4,12 +4,12 @@ kind: Config
 build:
   tagPolicy:
     envTemplate:
-      template: "v1.0.0"
+      template: "v1.0.2"
   artifacts:
-    - image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator
+    - image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator-manager
       custom:
         buildCommand: "make docker-build-operator"
-    - image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent
+    - image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator-agent
       custom:
         buildCommand: "make docker-build-agent"
 

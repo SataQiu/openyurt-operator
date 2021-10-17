@@ -1,0 +1,8 @@
+name: yurt-app-manager
+description: The app manager of OpenYurt
+type: application
+maintainers:
+  - name: shida.qsd
+    email: shida.qsd@alibaba-inc.com
+version: 0.4.0
+appVersion: 0.4.0

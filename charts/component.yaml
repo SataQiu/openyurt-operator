@@ -8,20 +8,20 @@ spec:
   description: The operator to manage edge cluster based on openyurt
   parentComponent: true
   provider: ""
-  appVersion: 1.0.0
+  appVersion: 1.0.2
   images:
-  - registry: registry.cn-hangzhou.aliyuncs.com
-    repository: ecp_builder/openyurt-operator
-    tag: v1.0.0
-    managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator:v1.0.0
-  - registry: registry.cn-hangzhou.aliyuncs.com
-    repository: ecp_builder/openyurt-agent
-    tag: v1.0.0
-    managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.0
   - registry: registry.cn-hangzhou.aliyuncs.com
     repository: ecp_builder/alpine:3.12.0
     tag: 3.12.0
     managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/alpine:3.12.0
+  - registry: registry.cn-hangzhou.aliyuncs.com
+    repository: ecp_builder/openyurt-agent
+    tag: v1.0.2
+    managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.2
+  - registry: registry.cn-hangzhou.aliyuncs.com
+    repository: ecp_builder/openyurt-operator
+    tag: v1.0.2
+    managedImage: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator:v1.0.2
   namespaces:
   - kube-system
   singleton: true
@@ -75,16 +75,16 @@ spec:
     ```shell
     # kubectl delete yurtclusters openyurt
     ```
-  version: 1.0.0
+  version: 1.0.2
   values: |
     agent:
-      image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.0
-      imagePullPolicy: Always
+        image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-agent:v1.0.2
+        imagePullPolicy: Always
     node:
-      healthCheckTimeout: 5m
-      image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/alpine:3.12.0
-      imagePullPolicy: IfNotPresent
+        healthCheckTimeout: 5m
+        image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/alpine:3.12.0
+        imagePullPolicy: IfNotPresent
     operator:
-      image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator:v1.0.0
-      imagePullPolicy: Always
+        image: registry.cn-hangzhou.aliyuncs.com/ecp_builder/openyurt-operator:v1.0.2
+        imagePullPolicy: Always
   platforms: []
