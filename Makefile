@@ -61,7 +61,7 @@ release-artifacts: docker-push release-manifests
 release-manifests: manifests
 	cd config/manager && kustomize edit set image openyurt-operator-manager=${MANAGER_IMG}
 	cd config/agent && kustomize edit set image openyurt-operator-agent=${AGENT_IMG}
-	kustomize build config/default > docs/manifests/${TAG}/deploy.yaml
+	kustomize build config/default > docs/manifests/deploy.yaml
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen

@@ -1,4 +1,4 @@
-# OpenYurt Operator
+# YurtCluster Operator
 
 ## Quick Start
 
@@ -16,32 +16,39 @@ nodes:
 EOF
 ```
 
-### Install OpenYurt Operator
+### Install YurtCluster Operator
 
 ```shell
-# helm install openyurt-operator ./charts -n kube-system
+# helm install operator ./charts -n kube-system
 ```
 
-### Convert the cluster to edge (apply YurtCluster)
+### Convert the cluster to Yurt cluster
 
 ```shell
 # kubectl apply -f ./config/samples/operator_v1alpha1_yurtcluster.yaml
 ```
 
+### Convert a Node to Cloud Node
+
+```shell
+# kubectl label node <NODE_NAME> openyurt.io/node-type=cloud
+```
+
 ### Convert a Node to Edge Node
 
 ```shell
-# kubectl label node <NODE_NAME> openyurt.io/is-edge-worker=true --overwrite
+# kubectl label node <NODE_NAME> openyurt.io/node-type=edge
 ```
+
 
 ### Revert a Node to Normal Node
 
 ```shell
-# kubectl label node <NODE_NAME> openyurt.io/is-edge-worker=false --overwrite
+# kubectl label node <NODE_NAME> openyurt.io/node-type-
 ```
 
 ### Revert the cluster to normal
 
 ```shell
-# kubectl delete yurtclusters openyurt
+# kubectl delete yurtclusters cluster
 ```
